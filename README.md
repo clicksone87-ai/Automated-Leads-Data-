@@ -97,6 +97,8 @@ Commands whose module is still a stub exit with code 2 and print `Not implemente
 
 ```bash
 uv run pytest          # tests (no network, no DB)
+# database tests (the database is wiped; its name must end in _test):
+# TEST_DATABASE_URL=postgresql+psycopg://leads:...@localhost:5452/leads_test uv run pytest
 uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pre-commit install
@@ -111,7 +113,7 @@ Layout: `src/leads/{sources,pipeline,enrich,outreach,export,flows}`. See
 Each item maps to `TODO(build step N)` markers in the code.
 
 - [x] **1. Project setup**: repo, uv, Docker Compose, settings, DB schema + Alembic, CI (ruff, mypy, pytest)
-- [ ] **2. Overture + Foursquare loaders** for 2–3 test countries, normalise, country filter (`sources/overture.py`, `sources/foursquare.py`, `pipeline/__init__.py`)
+- [ ] **2. Overture + Foursquare loaders** for 2–3 test countries, normalise, country filter (`sources/overture.py`, `sources/foursquare.py`, `pipeline/__init__.py`) — Overture done (tested on MT, IE); Foursquare awaiting dataset access
 - [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`)
 - [ ] **4. Website checker + email/WhatsApp extractor**: wire `check_pending` to the DB (`enrich/website.py`; classifier and extractors are done)
 - [ ] **5. Dedupe/match + CSV export + Metabase**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)

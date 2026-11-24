@@ -112,6 +112,7 @@ class Settings(BaseSettings):
     gmail_user_id: str = "me"
     google_sheet_id: str | None = None
     companies_house_api_key: SecretStr | None = None
+    hf_token: SecretStr | None = None
     insee_api_key: SecretStr | None = None
     abn_lookup_guid: SecretStr | None = None
     log_level: str = "INFO"

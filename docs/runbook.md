@@ -28,6 +28,13 @@ If port 5432 is already used on the host, set `DB_PORT=5433` in `.env` and use
   `docker compose run --rm auth`.
 - Error `invalid_grant`: the token expired or was revoked. Re-authorise.
 
+### Foursquare OS Places
+
+The dataset is gated. Request access to `foursquare/fsq-os-places` on Hugging Face, create
+a read token and put it in `.env` as `HF_TOKEN`. Then set `sources.foursquare.uri` to the
+places parquet glob of a release (or to downloaded files) and `enabled: true`. A release
+whose columns changed fails with the missing column names.
+
 ## 3. Schedules
 
 Defined in `config/settings.yaml` → `schedules` and evaluated in `timezone`.

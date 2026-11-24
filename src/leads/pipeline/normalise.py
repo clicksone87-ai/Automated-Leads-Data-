@@ -298,6 +298,7 @@ NORMALISED_SCHEMA: dict[str, Any] = {
     "lat": pl.Float64,
     "lon": pl.Float64,
     "created_date": pl.Date,
+    "shared_ids": pl.List(pl.String),
 }
 
 
@@ -328,6 +329,7 @@ def normalise_record(row: dict[str, Any], categories: CategoryConfig) -> dict[st
         "lat": row.get("lat"),
         "lon": row.get("lon"),
         "created_date": row.get("created_date"),
+        "shared_ids": row.get("shared_ids") or [],
     }
 
 

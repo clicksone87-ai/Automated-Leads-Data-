@@ -64,11 +64,17 @@ refresh:
 sources:
   overture:
     enabled: true
-    release: null               # TODO: e.g. "2025-10-22.0" (see docs.overturemaps.org/release)
+    release: null               # null = newest release on S3; or pin one, e.g. "2026-11-18.0"
     base_uri: "s3://overturemaps-us-west-2/release"
+    # [west, south, east, north] per country. Used only when every requested country has
+    # a box; it avoids scanning the whole planet for a few test countries.
+    bbox:
+      GB: [-8.8, 49.8, 2.0, 61.0]
+      IE: [-10.8, 51.3, -5.9, 55.5]
+      MT: [14.1, 35.7, 14.7, 36.2]
   foursquare:
-    enabled: true
-    uri: null                   # TODO: path/glob of the FSQ OS Places parquet files (local or s3://)
+    enabled: false              # enable once `uri` is set (gated dataset, see docs/runbook.md)
+    uri: null                   # local path/glob, or hf://datasets/foursquare/fsq-os-places/...
   osm:
     enabled: false
     extracts_dir: data/osm      # Geofabrik .osm.pbf files

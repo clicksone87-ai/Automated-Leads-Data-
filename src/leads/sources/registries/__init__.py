@@ -5,3 +5,5 @@ Each registry module exposes a Source class whose ``fetch`` yields RawRecords wi
 ["<registry>:<company number>"]. Registries rarely include phone/website, so these
 records mostly enrich age and legal name via matching (name + postcode).
 """
+
+REGISTRY_SOURCES = frozenset({"companies_house", "sirene", "brreg", "abn", "canada"})

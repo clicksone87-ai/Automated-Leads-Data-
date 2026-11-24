@@ -35,6 +35,9 @@ def _run(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     except NotImplementedError as exc:
         typer.secho(f"Not implemented yet: {exc}", fg=typer.colors.YELLOW, err=True)
         raise typer.Exit(code=2) from None
+    except (FileNotFoundError, ValueError) as exc:
+        typer.secho(f"Error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
     if result is not None:
         typer.echo(result)
     return result

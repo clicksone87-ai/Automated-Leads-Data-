@@ -18,8 +18,11 @@ import math
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from rapidfuzz import fuzz
+
+from leads.pipeline.normalise import is_social_domain
 
 # Lower number = more trusted when picking the representative record / field values.
 SOURCE_PRIORITY: dict[str, int] = {
@@ -169,23 +172,51 @@ def representative(records: Sequence[MatchRecord]) -> MatchRecord:
 
 
 def lead_id_for_cluster(records: Sequence[MatchRecord]) -> str:
-    """lead_id for a NEW cluster.
-
-    TODO(build step 5): before calling this, look up ``lead_sources`` for any record of
-    the cluster; if one already belongs to a lead, reuse that lead_id so ids stay stable
-    across monthly runs (and merge leads if the cluster spans several existing ids).
-    """
+    """lead_id for a NEW cluster (``pipeline.process`` reuses the ids of known records)."""
     rep = representative(records)
     return make_lead_id(rep.source, rep.source_record_id)
 
 
-def merge_fields(rows: Sequence[dict[str, object]]) -> dict[str, object]:
+# Filled field by field from the most trusted record that has a value.
+_MERGED_FIELDS = ("name", "email", "country_iso2", "address", "city", "region", "postcode")
+# Values that only make sense together, taken from one record.
+_MERGED_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("phone_e164", "phone_type"),
+    ("website", "domain"),
+    ("lat", "lon"),
+)
+
+
+def sort_by_priority(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda r: (SOURCE_PRIORITY.get(r["source"], 9), r["source"], r["source_record_id"]),
+    )
+
+
+def merge_fields(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Merge normalised rows of one cluster into a single lead row.
 
-    Rule: for each field take the first non-empty value in SOURCE_PRIORITY order;
-    ``sources`` = sorted distinct source names; ``created_date`` is resolved separately
-    by ``pipeline.age``.
-
-    TODO(build step 5): implement + tests (prefer registry name/address, FSQ phone, etc.).
+    Each field takes the first non-empty value in SOURCE_PRIORITY order; ``created_date``
+    is resolved separately by ``pipeline.age``.
     """
-    raise NotImplementedError("match.merge_fields (build step 5)")
+    ordered = sort_by_priority(rows)
+    merged: dict[str, Any] = {
+        field: next((r[field] for r in ordered if r.get(field)), None) for field in _MERGED_FIELDS
+    }
+    for group in _MERGED_GROUPS:
+        donor = next((r for r in ordered if r.get(group[0]) is not None), None)
+        for field in group:
+            merged[field] = donor[field] if donor else None
+    # A business's own site beats a social profile, whichever source listed it.
+    own_site = next(
+        (r for r in ordered if r.get("website") and not is_social_domain(r["domain"])), None
+    )
+    if own_site:
+        merged["website"], merged["domain"] = own_site["website"], own_site["domain"]
+    # A specific category beats "other".
+    named = next((r for r in ordered if r["category"] and r["category_group"] != "other"), None)
+    named = named or next((r for r in ordered if r["category"]), ordered[0])
+    merged["category"], merged["category_group"] = named["category"], named["category_group"]
+    merged["sources"] = sorted({r["source"] for r in rows})
+    return merged
