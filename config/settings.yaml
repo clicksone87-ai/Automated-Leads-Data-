@@ -1,0 +1,86 @@
+# Behaviour settings. Secrets and connection strings live in .env (see .env.example).
+# Any value here can be overridden by an environment variable, nested keys joined
+# with "__", e.g. WEBSITE__TIMEOUT_SECONDS=20 or BATCH__DRAFTS_PER_DAY=50.
+
+# Keep businesses created / first seen on or after this date.
+since: 2018-01-01
+# Leads with no known creation date are kept in the DB (age_unknown = true).
+# This flag controls whether they appear in exports, the Sheet and daily drafts.
+include_unknown_age: true
+
+# Time zone for all Prefect schedules (IANA name). TODO: set to your local zone,
+# and set TZ in .env to the same value (used by the backup container).
+timezone: UTC
+
+schedules:              # cron expressions, evaluated in `timezone`
+  monthly_collect: "0 2 1 * *"   # 1st of month 02:00: collect + refresh
+  daily_drafts: "0 7 * * *"      # 07:00: Gmail drafts + Google Sheet update
+  gmail_sync: "*/30 * * * *"     # every 30 min
+  backup_check: "30 3 * * *"     # 03:30: verify the 03:00 pg_dump from the backup container
+
+batch:
+  drafts_per_day: 100
+  website_concurrency: 50       # parallel domains being checked
+  db_chunk_size: 5000           # rows per insert/upsert batch
+  raw_chunk_size: 100000        # rows per raw parquet part file
+
+website:
+  timeout_seconds: 12
+  # Page requests per domain (home + one contact page). robots.txt is fetched once
+  # per domain in addition to this budget.
+  max_requests_per_domain: 2
+  respect_robots_txt: true
+  user_agent: "lead-automation/0.1 (+https://example.com/lead-automation-bot)"  # TODO: your URL
+  recheck_after_days: 30
+  min_text_chars: 100           # visible text needed for "working" (200 + real content)
+
+outreach:
+  followup_after_days: 6
+  default_language: en
+  delivery_days: 7
+  price: "£499"                 # TODO: your price / currency
+
+sender:                         # TODO: fill in before creating drafts
+  sender_name: "Your Name"
+  company: "Your Company"
+  company_website: "https://example.com"
+  company_phone: "+44 20 0000 0000"
+  company_address: "1 Example Street, London, UK"
+  mockup_link: "https://example.com/mockups"
+
+sanctions:
+  sdn_url: "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV"
+  add_url: "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ADD.CSV"
+  min_score: 92
+
+match:
+  name_score_threshold: 90      # rapidfuzz token_sort_ratio for name+50m matching
+  geo_radius_m: 50
+  max_shared_key_group: 8       # a domain/phone shared by more records is treated as a chain, not a key
+
+refresh:
+  closed_after_missed_runs: 2
+
+sources:
+  overture:
+    enabled: true
+    release: null               # TODO: e.g. "2025-10-22.0" (see docs.overturemaps.org/release)
+    base_uri: "s3://overturemaps-us-west-2/release"
+  foursquare:
+    enabled: true
+    uri: null                   # TODO: path/glob of the FSQ OS Places parquet files (local or s3://)
+  osm:
+    enabled: false
+    extracts_dir: data/osm      # Geofabrik .osm.pbf files
+  companies_house:
+    enabled: false
+  sirene:
+    enabled: false
+  brreg:
+    enabled: false
+  abn:
+    enabled: false
+  canada:
+    enabled: false
+  directories:
+    enabled: false

@@ -1,0 +1,85 @@
+[project]
+name = "lead-automation"
+version = "0.1.0"
+description = "Automated lead collection and outreach preparation. Creates Gmail drafts only; never sends."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.13",
+    "dnspython>=2.6",
+    "duckdb>=1.1",
+    "google-api-python-client>=2.140",
+    "google-auth-oauthlib>=1.2",
+    "httpx>=0.27",
+    "phonenumbers>=8.13",
+    "polars>=1.9",
+    "prefect>=3.1,<4",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.6",
+    "pyyaml>=6.0",
+    "rapidfuzz>=3.9",
+    "selectolax>=0.3.21",
+    "sqlalchemy>=2.0.30",
+    "structlog>=24.4",
+    "tldextract>=5.1",
+    "typer>=0.12",
+]
+
+[project.scripts]
+leads = "leads.cli:app"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.11",
+    "pre-commit>=3.8",
+    "pytest>=8.3",
+    "ruff>=0.7",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leads"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = [
+    "B008",                        # typer uses function calls in defaults
+    "RUF001", "RUF002", "RUF003",  # Cyrillic/Arabic/Turkish text is intentional (multilingual)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501", "RUF012"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src"]
+mypy_path = "src"
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "googleapiclient.*",
+    "google_auth_oauthlib.*",
+    "google.oauth2.*",
+    "google.auth.*",
+    "selectolax.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

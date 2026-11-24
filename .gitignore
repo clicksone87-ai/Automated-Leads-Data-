@@ -1,0 +1,25 @@
+# Secrets and local data
+.env
+secrets/*
+!secrets/README.md
+data/*
+!data/.gitkeep
+backups/*
+!backups/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

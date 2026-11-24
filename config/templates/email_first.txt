@@ -1,0 +1,16 @@
+Subject: Quick idea for {business_name}
+
+Hi {business_name} team,
+
+I came across {business_name} while looking at {category} businesses in {city}. I noticed you {website_line}.
+
+Most customers look online before they call, so a simple site with your services, hours and a click-to-call button usually brings more enquiries. We build these for small businesses, typically ready in {delivery_days} days, starting at {price}.
+
+Would it help if I sent you a free one-page mock-up for {business_name}? No cost and no obligation.
+
+Best regards,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+If you'd rather not hear from us, reply "no thanks" and we won't contact you again.

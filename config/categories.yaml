@@ -1,0 +1,76 @@
+# Maps source categories to shared category groups.
+# Lookup order: exact match in `sources.<source>` -> keyword match in `keywords` -> default_group.
+# Group display names are used for Gmail labels (Leads/Category/<display name>) and the Sheet.
+
+default_group: other
+
+groups:
+  food_drink: "Food & Drink"
+  retail: "Retail"
+  beauty_wellness: "Beauty & Wellness"
+  health_medical: "Health & Medical"
+  trades_construction: "Trades & Construction"
+  home_services: "Home Services"
+  automotive: "Automotive"
+  professional_services: "Professional Services"
+  hospitality: "Hotels & Lodging"
+  fitness_sports: "Fitness & Sports"
+  education: "Education"
+  real_estate: "Real Estate"
+  pets: "Pets"
+  events_entertainment: "Events & Entertainment"
+  other: "Other"
+
+# Exact (lower-cased) category values per source. TODO: extend from real data.
+sources:
+  overture:
+    restaurant: food_drink
+    cafe: food_drink
+    coffee_shop: food_drink
+    bakery: food_drink
+    bar: food_drink
+    beauty_salon: beauty_wellness
+    hair_salon: beauty_wellness
+    barber: beauty_wellness
+    nail_salon: beauty_wellness
+    dentist: health_medical
+    plumbing: trades_construction
+    electrician: trades_construction
+    automotive_repair: automotive
+    car_dealer: automotive
+    accountant: professional_services
+    lawyer: professional_services
+    hotel: hospitality
+    gym: fitness_sports
+    real_estate_agent: real_estate
+    pet_groomer: pets
+    veterinarian: pets
+  foursquare:
+    "dining and drinking > restaurant": food_drink
+    "dining and drinking > cafe, coffee, and tea house": food_drink
+    "retail": retail
+    "health and medicine > dentist": health_medical
+  osm:
+    "amenity=restaurant": food_drink
+    "amenity=cafe": food_drink
+    "shop=hairdresser": beauty_wellness
+    "shop=car_repair": automotive
+    "craft=plumber": trades_construction
+    "craft=electrician": trades_construction
+
+# Fallback: first group whose keyword appears in the lower-cased category text.
+keywords:
+  food_drink: [restaurant, cafe, coffee, bakery, bar, pub, pizza, food, catering, dining, takeaway, kebab]
+  beauty_wellness: [beauty, salon, hair, barber, nail, spa, massage, cosmetic, tattoo, hairdresser]
+  health_medical: [dentist, dental, clinic, doctor, medical, pharmacy, physio, optician, chiropract]
+  trades_construction: [plumb, electric, roofing, builder, construction, carpent, painter, hvac, locksmith]
+  home_services: [cleaning, gardening, landscap, pest, moving, removals, handyman]
+  automotive: [car, auto, garage, tyre, tire, mechanic, motor]
+  professional_services: [accountant, lawyer, legal, consult, insurance, marketing, agency, architect]
+  hospitality: [hotel, hostel, guest house, guesthouse, motel, bed and breakfast, lodging]
+  fitness_sports: [gym, fitness, yoga, pilates, sport, martial arts, dance]
+  education: [school, tutor, academy, training, driving school, language school]
+  real_estate: [real estate, estate agent, property, realtor]
+  pets: [pet, vet, veterinar, dog, grooming]
+  events_entertainment: [event, wedding, photograph, dj, entertainment, venue]
+  retail: [shop, store, boutique, retail, florist, jewel, clothing]

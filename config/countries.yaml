@@ -1,0 +1,12 @@
+# Countries included in collection and outreach (ISO 3166-1 alpha-2).
+# Loaded with a string-only YAML loader, so NO (Norway) is not read as a boolean.
+include:
+  europe: [AL, AD, AT, BY, BE, BA, BG, HR, CZ, DK, EE, FI, FR, DE, GR, HU, IS, IE, IT, XK, LV, LI, LT, LU, MT, MD, MC, ME, NL, MK, NO, PL, PT, RO, SM, RS, SK, SI, ES, SE, CH, UA, GB, VA, AX, FO, GI, GG, IM, JE]
+  russia_turkey_caucasus: [RU, TR, CY, GE, AM, AZ, KZ]
+  arab_middle_east: [SA, AE, QA, KW, BH, OM, JO, LB, IQ, SY, YE, PS]
+  north_central_america: [US, CA, MX, BZ, CR, SV, GT, HN, NI, PA, BM, GL, PM]
+  caribbean: [AG, BS, BB, CU, DM, DO, GD, HT, JM, KN, LC, VC, TT, AI, AW, VG, KY, CW, GP, MQ, MS, PR, SX, TC, VI]
+  south_america: [AR, BO, BR, CL, CO, EC, GY, PY, PE, SR, UY, VE, GF]
+  africa: [DZ, AO, BJ, BW, BF, BI, CV, CM, CF, TD, KM, CG, CD, CI, DJ, EG, GQ, ER, SZ, ET, GA, GM, GH, GN, GW, KE, LS, LR, LY, MG, MW, ML, MR, MU, MA, MZ, NA, NE, NG, RW, ST, SN, SC, SL, SO, ZA, SS, SD, TZ, TG, TN, UG, ZM, ZW, RE, YT]
+  oceania: [AU, NZ, FJ, KI, MH, FM, NR, PW, PG, WS, SB, TO, TV, VU, PF, GU, NC, MP]
+# Everything else (rest of Asia, incl. Iran and Israel) is excluded.
