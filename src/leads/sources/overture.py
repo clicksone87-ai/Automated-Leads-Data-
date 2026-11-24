@@ -14,7 +14,7 @@ from xml.etree import ElementTree
 import duckdb
 import httpx
 
-from leads.sources.base import RawRecord
+from leads.sources.base import RawRecord, bbox_sql
 
 FETCH_BATCH = 10_000
 DEFAULT_BASE_URI = "s3://overturemaps-us-west-2/release"
@@ -76,22 +76,6 @@ class OvertureSource:
             self.release = latest_release()
         return f"{self.base_uri}/{self.release}/theme=places/type=place/*"
 
-    def bbox_filter(self, countries: Collection[str]) -> str:
-        """SQL limiting the scan to the countries' boxes ([west, south, east, north]).
-
-        Files are ordered by location, so this skips most of the planet. Empty unless every
-        requested country has a box.
-        """
-        if not countries or any(c not in self.bbox for c in countries):
-            return ""
-        boxes = []
-        for country in sorted(countries):
-            west, south, east, north = (float(x) for x in self.bbox[country])
-            boxes.append(
-                f"(bbox.xmin BETWEEN {west} AND {east} AND bbox.ymin BETWEEN {south} AND {north})"
-            )
-        return f"AND ({' OR '.join(boxes)})"
-
     def build_query(self, countries: Collection[str] = ()) -> str:
         """SQL selecting the fields we need; country list is bound as parameter ``$countries``."""
         closed = ", ".join(f"'{s}'" for s in CLOSED_STATUSES)
@@ -111,6 +95,7 @@ class OvertureSource:
                 addresses[1].country                       AS country_iso2,
                 bbox.xmin                                  AS lon,
                 bbox.ymin                                  AS lat,
+                taxonomy.hierarchy                         AS category_path,
                 confidence,
                 operating_status,
                 sources
@@ -118,7 +103,7 @@ class OvertureSource:
             WHERE list_contains($countries, addresses[1].country)
               AND names.primary IS NOT NULL
               AND COALESCE(operating_status, 'open') NOT IN ({closed})
-              {self.bbox_filter(countries)}
+              {bbox_sql(self.bbox, countries, "bbox.xmin", "bbox.ymin")}
         """
 
     def connect(self) -> duckdb.DuckDBPyConnection:
@@ -160,6 +145,7 @@ class OvertureSource:
                 "confidence": row["confidence"],
                 "operating_status": row["operating_status"],
                 "release": self.release,
+                "category_path": list(row["category_path"] or ()),
                 "socials": list(row["socials"] or ()),
             },
         )

@@ -129,26 +129,47 @@ def test_lead_found_to_be_old_is_removed_or_closed(data_dir: Path) -> None:
 
 
 def test_two_leads_that_turn_out_to_be_one_are_merged(data_dir: Path) -> None:
-    run(data_dir, rec("overture", "1", "Blue Cafe"), rec("overture", "2", "Blue Restaurant"))
-    contacted = next(x for x in leads() if x.name == "Blue Restaurant")
+    run(data_dir, rec("overture", "1", "Blue Cafe"), rec("overture", "2", "Blue Cafe Valletta"))
+    contacted = next(x for x in leads() if x.name == "Blue Cafe Valletta")
     add_outreach(contacted.lead_id)
     phone = "+35621234567"
     run(
         data_dir,
         rec("overture", "1", "Blue Cafe", phone=phone),
-        rec("overture", "2", "Blue Restaurant", phone=phone),
+        rec("overture", "2", "Blue Cafe Valletta", phone=phone),
     )
     (lead,) = leads()
     assert lead.lead_id == contacted.lead_id
     assert (count(Outreach), count(LeadSource)) == (1, 2)
 
 
-def test_lead_whose_records_split_keeps_its_id_once(data_dir: Path) -> None:
-    phone = "+35621234567"
+def test_kept_lead_is_stable_when_its_other_record_turns_out_old(data_dir: Path) -> None:
     run(
         data_dir,
-        rec("overture", "1", "Blue Cafe", phone=phone),
-        rec("overture", "2", "Red Garage", phone=phone),
+        rec("overture", "1", "Old Inn", shared_ids=["foursquare:f1", "x:1"]),
+        rec("overture", "2", "Zed Bar", shared_ids=["x:1"]),
+    )
+    (joined,) = leads()
+    second = collect(
+        data_dir,
+        rec("overture", "1", "Old Inn", shared_ids=["foursquare:f1"]),
+        rec("overture", "2", "Zed Bar"),
+        rec("foursquare", "f1", "Old Inn", shared_ids=["foursquare:f1"],
+            created_date=date(2011, 1, 1)),
+    )  # fmt: skip
+    for _ in range(2):
+        counts = process.process_run(second)
+        (lead,) = leads()
+        assert (lead.name, lead.lead_id) == ("Zed Bar", joined.lead_id)
+        assert (counts["updated"], counts.get("retired", 0)) == (1, 0)
+    assert count(LeadSource) == 1
+
+
+def test_lead_whose_records_split_keeps_its_id_once(data_dir: Path) -> None:
+    run(
+        data_dir,
+        rec("overture", "1", "Blue Cafe", shared_ids=["x:1"]),
+        rec("overture", "2", "Red Garage", shared_ids=["x:1"]),
     )
     (joined,) = leads()
     run(data_dir, rec("overture", "1", "Blue Cafe"), rec("overture", "2", "Red Garage"))
@@ -168,6 +189,19 @@ def test_check_results_survive_until_the_website_changes(data_dir: Path) -> None
     run(data_dir, rec("overture", "1", "Blue Cafe", website="https://new.example"))
     (lead,) = leads()
     assert (lead.website_status, lead.whatsapp_number) == (None, "+35699999999")
+
+
+def test_non_businesses_and_platform_pages(data_dir: Path) -> None:
+    fort = ["cultural_and_historic", "historic_site", "fort"]
+    counts = run(
+        data_dir,
+        rec("overture", "1", "Blue Cafe", website="https://linktr.ee/blue"),
+        rec("overture", "2", "Old Fort", category="fort", raw={"category_path": fort}),
+    )
+    (lead,) = leads()
+    assert (lead.name, lead.website, lead.domain) == ("Blue Cafe", None, None)
+    assert lead.socials == {"listing": "https://linktr.ee/blue"}
+    assert counts["not_business"] == 1
 
 
 def test_unknown_run(data_dir: Path) -> None:

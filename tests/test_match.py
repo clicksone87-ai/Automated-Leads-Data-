@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
 from leads.pipeline.match import (
     MatchRecord,
     cluster_records,
+    distinctive_names,
     haversine_m,
     lead_id_for_cluster,
     make_lead_id,
@@ -35,9 +38,35 @@ def test_same_domain_different_country_not_merged() -> None:
 def test_phone_match() -> None:
     records = [
         rec("overture", "o1", "joes plumbing", phone_e164="+447400123456"),
-        rec("foursquare", "f1", "joe the plumber", phone_e164="+447400123456"),
+        rec("foursquare", "f1", "joe s plumbing and heating", phone_e164="+447400123456"),
     ]
     assert cluster_records(records) == [[0, 1]]
+
+
+@pytest.mark.parametrize(
+    "key", [{"domain": "grandhotel.mt"}, {"phone_e164": "+35621234567"}], ids=["domain", "phone"]
+)
+def test_shared_key_needs_alike_names(key: dict[str, str]) -> None:
+    records = [
+        rec("overture", "o1", "grand hotel", **key),
+        rec("overture", "o2", "mokka lobby bar", **key),
+        rec("foursquare", "f1", "grand hotel malta", **key),
+    ]
+    assert cluster_records(records) == [[0, 2], [1]]
+
+
+def test_word_spacing_does_not_split() -> None:
+    records = [
+        rec("overture", "o1", "pizzadog", domain="pizzadog.ie"),
+        rec("overture", "o2", "pizza dog", domain="pizzadog.ie"),
+    ]
+    assert cluster_records(records) == [[0, 1]]
+
+
+def test_common_words_do_not_make_names_alike() -> None:
+    names = [f"holiday home {w}" for w in "abcdefghijklmnopqrstuvwxyz"]
+    assert distinctive_names(names)[:2] == ["a", "b"]
+    assert distinctive_names(["holiday home"] * 30)[0] == "holiday home"
 
 
 def test_name_postcode_match() -> None:

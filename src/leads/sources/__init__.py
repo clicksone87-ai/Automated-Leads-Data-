@@ -17,7 +17,7 @@ def _overture(s: Settings) -> Source:
     return OvertureSource(
         release=s.source_option("overture", "release"),
         base_uri=s.source_option("overture", "base_uri", "s3://overturemaps-us-west-2/release"),
-        bbox=s.source_option("overture", "bbox"),
+        bbox=s.country_bbox,
     )
 
 
@@ -25,7 +25,9 @@ def _foursquare(s: Settings) -> Source:
     from leads.sources.foursquare import FoursquareSource
 
     token = s.hf_token.get_secret_value() if s.hf_token else None
-    return FoursquareSource(uri=s.source_option("foursquare", "uri"), hf_token=token)
+    return FoursquareSource(
+        uri=s.source_option("foursquare", "uri"), hf_token=token, bbox=s.country_bbox
+    )
 
 
 def _osm(s: Settings) -> Source:

@@ -2,20 +2,21 @@
 
 Match keys, strongest first:
 1. shared ids (e.g. a registry number present in two sources)
-2. domain (same country)
-3. phone (E.164)
+2. domain (same country), when the names are alike
+3. phone (E.164), when the names are alike
 4. normalised name + postcode (same country)
 5. similar name within ``geo_radius_m`` (default 50 m)
 
 A domain or phone shared by more than ``max_shared_key_group`` records is treated as a
-chain/franchise/call-centre and NOT used as a key.
+chain/franchise/call-centre and NOT used as a key. Names must agree because one website or
+phone often serves several businesses (a hotel and its bar, an agency and its clients).
 """
 
 from __future__ import annotations
 
 import hashlib
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -68,6 +69,31 @@ class _UnionFind:
             self.parent[max(ra, rb)] = min(ra, rb)
 
 
+# A word in at least this many names, and this share of them, says little about identity.
+_COMMON_WORD_MIN = 20
+_COMMON_WORD_SHARE = 0.002
+
+
+def distinctive_names(names: Sequence[str]) -> list[str]:
+    """Names without words common in the data ("malta", "hotel", "centre").
+
+    A name made only of common words is kept whole.
+    """
+    seen: Counter[str] = Counter(w for name in names for w in set(name.split()))
+    limit = max(_COMMON_WORD_MIN, _COMMON_WORD_SHARE * len(names))
+    result = []
+    for name in names:
+        rare = [w for w in name.split() if seen[w] < limit]
+        result.append(" ".join(rare) or name)
+    return result
+
+
+def name_likeness(a: str, b: str) -> float:
+    """0-100. Extra words on one side and different word spacing are tolerated."""
+    joined = fuzz.ratio(a.replace(" ", ""), b.replace(" ", ""))
+    return max(fuzz.token_set_ratio(a, b), joined)
+
+
 def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r = 6_371_000.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -81,6 +107,7 @@ def _union_by_key(
     records: Sequence[MatchRecord],
     key_fn: Callable[[MatchRecord], Iterable[str]],
     max_group: int | None,
+    alike: Callable[[int, int], bool] | None = None,
 ) -> None:
     groups: dict[str, list[int]] = defaultdict(list)
     for i, rec in enumerate(records):
@@ -89,8 +116,14 @@ def _union_by_key(
     for members in groups.values():
         if len(members) < 2 or (max_group is not None and len(members) > max_group):
             continue
-        for other in members[1:]:
-            uf.union(members[0], other)
+        if alike is None:
+            for other in members[1:]:
+                uf.union(members[0], other)
+            continue
+        for n, i in enumerate(members):
+            for j in members[n + 1 :]:
+                if alike(i, j):
+                    uf.union(i, j)
 
 
 def _union_by_geo(
@@ -126,20 +159,31 @@ def cluster_records(
     records: Sequence[MatchRecord],
     *,
     name_threshold: int = 90,
+    shared_key_threshold: int = 75,
     radius_m: float = 50.0,
     max_shared_key_group: int = 8,
 ) -> list[list[int]]:
     """Group record indices that refer to the same business. Each group becomes one lead."""
     uf = _UnionFind(len(records))
+    names = distinctive_names([r.name_norm for r in records])
+
+    def alike(i: int, j: int) -> bool:
+        return name_likeness(names[i], names[j]) >= shared_key_threshold
+
     _union_by_key(uf, records, lambda r: r.shared_ids, None)
     _union_by_key(
         uf,
         records,
         lambda r: [f"{r.country_iso2}|{r.domain}"] if r.domain else [],
         max_shared_key_group,
+        alike,
     )
     _union_by_key(
-        uf, records, lambda r: [r.phone_e164] if r.phone_e164 else [], max_shared_key_group
+        uf,
+        records,
+        lambda r: [r.phone_e164] if r.phone_e164 else [],
+        max_shared_key_group,
+        alike,
     )
     _union_by_key(
         uf,

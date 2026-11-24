@@ -34,12 +34,13 @@ from leads.pipeline.match import (
 )
 from leads.pipeline.normalise import (
     SOCIAL_DOMAINS,
+    is_non_business,
     is_social_domain,
     normalise_country,
     normalise_domain,
     normalise_frame,
 )
-from leads.settings import Settings, get_settings, load_categories, load_countries
+from leads.settings import Settings, get_settings, load_categories, load_countries, load_filters
 from leads.sources.base import RAW_SCHEMA, raw_dir
 from leads.sources.registries import REGISTRY_SOURCES
 
@@ -61,6 +62,7 @@ class CountryInput:
 
     rows: list[dict[str, Any]]
     current: list[bool]
+    excluded: int = 0
 
 
 # --- raw zone --------------------------------------------------------------------------
@@ -114,7 +116,7 @@ def _load_country(
     earlier: dict[str, list[Path]],
     run_countries: frozenset[str],
 ) -> CountryInput:
-    categories = load_categories()
+    categories, filters = load_categories(), load_filters()
     result = CountryInput(rows=[], current=[])
 
     def add(frame: pl.DataFrame, is_current: bool) -> None:
@@ -126,7 +128,12 @@ def _load_country(
         }
         for row in normalise_frame(unique, categories, run_countries).iter_rows(named=True):
             raw = extras[(row["source"], row["source_record_id"])]
-            result.rows.append({**row, "raw": json.loads(raw) if raw else {}})
+            details = json.loads(raw) if raw else {}
+            path = details.get("category_path") or ()
+            if is_non_business(row["source"], row["category"], path, filters):
+                result.excluded += is_current
+                continue
+            result.rows.append({**row, "raw": details})
             result.current.append(is_current)
 
     for directory in current.values():
@@ -179,6 +186,8 @@ def socials_from_rows(rows: Sequence[dict[str, Any]]) -> dict[str, str]:
     """``{"facebook": url, ...}`` from the social URLs the sources list."""
     found: dict[str, str] = {}
     for row in rows:
+        if row["listing_url"]:
+            found.setdefault("listing", row["listing_url"])
         for url in row["raw"].get("socials") or ():
             domain = normalise_domain(url)
             if domain in SOCIAL_DOMAINS:
@@ -351,6 +360,29 @@ def _retire(session: Session, retired: Sequence[tuple[str, AgeResult]]) -> None:
         )
 
 
+def _drop_sources(session: Session, keys: Sequence[tuple[str, str]], chunk: int) -> None:
+    """Forget too-old records, except those documenting a lead kept for its history."""
+    contacted = exists().where(Outreach.lead_id == LeadSource.lead_id)
+    by_source: dict[str, list[str]] = defaultdict(list)
+    for source, record_id in keys:
+        by_source[source].append(record_id)
+    for source, ids in by_source.items():
+        for part in _chunks(ids, chunk):
+            session.execute(
+                delete(LeadSource)
+                .where(
+                    LeadSource.source == source,
+                    LeadSource.source_record_id.in_(part),
+                    ~contacted,
+                )
+                .execution_options(synchronize_session=False)
+            )
+
+
+def _keep(age: AgeResult, settings: Settings) -> bool:
+    return keep_lead(LeadStatus.ACTIVE, age.created_date, age.age_unknown, settings.since)
+
+
 def load_country(
     session: Session,
     data: CountryInput,
@@ -365,31 +397,41 @@ def load_country(
     clusters = cluster_records(
         matches,
         name_threshold=settings.match.name_score_threshold,
+        shared_key_threshold=settings.match.shared_key_name_score,
         radius_m=settings.match.geo_radius_m,
         max_shared_key_group=settings.match.max_shared_key_group,
     )
     known_ids = _existing_ids(session, rows, chunk)
     stored = _existing_leads(session, sorted(set(known_ids.values())), chunk)
 
-    counts: Counter[str] = Counter(rows=sum(data.current), clusters=len(clusters))
+    counts: Counter[str] = Counter(
+        rows=sum(data.current), clusters=len(clusters), not_business=data.excluded
+    )
     leads: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
     merged: list[tuple[str, str]] = []
     retired: list[tuple[str, AgeResult]] = []
     claimed: set[str] = set()
+    dropped: list[tuple[str, str]] = []
 
+    candidates = []
     for members in clusters:
-        if not any(data.current[i] for i in members):
-            continue
-        group = [rows[i] for i in members]
+        if any(data.current[i] for i in members):
+            group = [rows[i] for i in members]
+            candidates.append((members, group, resolve_age(age_evidence(group))))
+    # Too-old clusters go last, so they never take a lead that a kept cluster still needs.
+    candidates.sort(key=lambda c: not _keep(c[2], settings))
+
+    for members, group, fresh in candidates:
         ids = {known_ids.get((r["source"], r["source_record_id"])) for r in group}
         # A lead whose records now fall into two clusters stays with the first of them.
         existing = [stored[i] for i in sorted(x for x in ids if x) if i not in claimed]
         first_seen = min((e.first_seen for e in existing if e.first_seen), default=seen_at)
-        age = combine_age(resolve_age(age_evidence(group)), existing, first_seen)
+        age = combine_age(fresh, existing, first_seen)
 
-        if not keep_lead(LeadStatus.ACTIVE, age.created_date, age.age_unknown, settings.since):
+        if not _keep(age, settings):
             counts["too_old"] += 1
+            dropped.extend((r["source"], r["source_record_id"]) for r in group)
             retired.extend((e.lead_id, age) for e in existing)
             claimed.update(e.lead_id for e in existing)
             continue
@@ -423,6 +465,7 @@ def load_country(
     _upsert_leads(session, leads, chunk)
     _upsert_sources(session, records, chunk)
     _merge_away(session, merged)
+    _drop_sources(session, dropped, chunk)
     _retire(session, retired)
     counts["merged"] = len(merged)
     counts["retired"] = len(retired)

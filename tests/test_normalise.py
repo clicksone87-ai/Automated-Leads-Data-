@@ -4,6 +4,8 @@ import polars as pl
 import pytest
 
 from leads.pipeline.normalise import (
+    is_non_business,
+    is_platform,
     is_social_domain,
     map_category,
     normalise_country,
@@ -14,7 +16,7 @@ from leads.pipeline.normalise import (
     normalise_postcode,
     normalise_website,
 )
-from leads.settings import load_categories, load_countries
+from leads.settings import load_categories, load_countries, load_filters
 
 
 class TestPhone:
@@ -174,3 +176,38 @@ def test_normalise_frame_filters_country_and_empty_names() -> None:
     assert row["domain"] == "rosiesbakery.co.uk"
     assert row["postcode_key"] == "LS14AP"
     assert row["category_group"] == "food_drink"
+
+
+class TestFilters:
+    @pytest.mark.parametrize(
+        ("url", "expected"),
+        [
+            ("https://linktr.ee/blue", True),
+            ("https://www.tripadvisor.ie/x", True),
+            ("https://wa.me/35699999999", True),
+            ("https://maps.google.com/?cid=1", True),
+            ("https://sites.google.com/view/blue", False),
+            ("https://blue.example.com", False),
+            (None, False),
+        ],
+    )
+    def test_is_platform(self, url: str | None, expected: bool) -> None:
+        assert is_platform(url, load_filters()) is expected
+
+    @pytest.mark.parametrize(
+        ("source", "category", "path", "expected"),
+        [
+            ("overture", "fort", ["cultural_and_historic", "historic_site", "fort"], True),
+            ("overture", "historic_site", [], True),
+            ("overture", "water_park", ["sports_and_recreation", "park", "water_park"], False),
+            ("overture", "park", ["sports_and_recreation", "park"], True),
+            ("overture", None, [], False),
+            ("foursquare", "Community and Government > Spiritual Center > Church", [], True),
+            ("foursquare", "Landmarks and Outdoors > Beach | Retail > Shop", [], False),
+            ("companies_house", "historic_site", [], False),
+        ],
+    )
+    def test_is_non_business(
+        self, source: str, category: str | None, path: list[str], expected: bool
+    ) -> None:
+        assert is_non_business(source, category, path, load_filters()) is expected

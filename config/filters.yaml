@@ -1,0 +1,153 @@
+# What counts as a business, and what counts as a business's own website.
+
+# A record is left out when its category path contains one of these (Overture) or when all
+# of its category labels start with one of these (Foursquare). Lower-case. A leading "="
+# matches the record's own category only, not its parents.
+exclude_categories:
+  overture:
+    - historic_site
+    - place_of_worship
+    - religious_organization
+    - memorial_site
+    - government_office
+    - public_safety_service
+    - public_facility
+    - military_site
+    - geographic_entities
+    - library
+    - college_university
+    - public_school
+    - national_park
+    - dog_park
+    - playground
+    - "=park"        # only plain parks: water parks share this path
+    - recreational_trail_or_path
+    - street_art
+    - sculpture_statue
+    - parking
+    - ev_charging_station
+    - airport
+    - airport_terminal
+    - train
+    - post_office
+    - package_locker
+    - atm
+    - electric_utility_provider
+    - natural_gas_utility_provider
+    - water_utility_provider
+  foursquare:
+    - landmarks and outdoors > states and municipalities
+    - landmarks and outdoors > structure
+    - landmarks and outdoors > historic and protected site
+    - landmarks and outdoors > park
+    - landmarks and outdoors > beach
+    - landmarks and outdoors > scenic lookout
+    - landmarks and outdoors > plaza
+    - landmarks and outdoors > pedestrian plaza
+    - landmarks and outdoors > other great outdoors
+    - landmarks and outdoors > garden
+    - landmarks and outdoors > bay
+    - landmarks and outdoors > monument
+    - landmarks and outdoors > memorial site
+    - landmarks and outdoors > hiking trail
+    - landmarks and outdoors > cave
+    - landmarks and outdoors > field
+    - landmarks and outdoors > island
+    - landmarks and outdoors > lighthouse
+    - landmarks and outdoors > nature preserve
+    - landmarks and outdoors > waterfront
+    - landmarks and outdoors > castle
+    - landmarks and outdoors > bridge
+    - landmarks and outdoors > mountain
+    - landmarks and outdoors > fountain
+    - landmarks and outdoors > lake
+    - landmarks and outdoors > tower
+    - landmarks and outdoors > tree
+    - landmarks and outdoors > fort
+    - landmarks and outdoors > hill
+    - landmarks and outdoors > river
+    - landmarks and outdoors > forest
+    - landmarks and outdoors > archaeological site
+    - landmarks and outdoors > rock climbing spot
+    - landmarks and outdoors > surf spot
+    - landmarks and outdoors > bathing area
+    - landmarks and outdoors > dive spot
+    - community and government > government building
+    - community and government > spiritual center
+    - community and government > residential building
+    - community and government > housing development
+    - community and government > cemetery
+    - community and government > public bathroom
+    - community and government > town hall
+    - community and government > library
+    - community and government > polling place
+    - community and government > education > college and university
+    - travel and transportation > transport hub
+    - travel and transportation > road
+    - travel and transportation > parking
+    - travel and transportation > pier
+    - travel and transportation > port
+    - travel and transportation > rest area
+    - travel and transportation > moving target
+    - event >
+
+# Pages on these sites are listings, booking pages or link pages, not the business's own
+# website. The URL is kept in socials.listing.
+platform_domains:
+  - linktr.ee
+  - beacons.ai
+  - fresha.com
+  - phorest.com
+  - booksy.com
+  - setmore.com
+  - nearcut.com
+  - barespace.app
+  - heygoldie.com
+  - gettimely.com
+  - calendly.com
+  - cliniko.com
+  - as.me
+  - bookwhen.com
+  - simplybook.it
+  - resdiary.com
+  - tableo.com
+  - resurva.com
+  - versum.com
+  - book.app
+  - booking.com
+  - wolt.com
+  - bolt.eu
+  - ubereats.com
+  - etsy.com
+  - gofundme.com
+  - radicalstorage.com
+  - parkopedia.ie
+  - goldenpages.ie
+  - yellow.com.mt
+  - daft.ie
+  - donedeal.ie
+  - wikipedia.org
+  - wa.me
+  - whatsapp.com
+  - g.page
+  - g.co
+  - goo.gl
+  - share.google
+  - maps.google.com
+  - docs.google.com
+  - forms.gle
+  - surveymonkey.com
+  - doubleclick.net
+  - discoverireland.ie
+# Matched on the name whatever the country ending (tripadvisor.com, tripadvisor.ie, ...).
+platform_brands:
+  - airbnb
+  - tripadvisor
+  - eventbrite
+  - yelp
+  - opentable
+  - deliveroo
+  - just-eat
+  - justeat
+  - treatwell
+  - foursquare

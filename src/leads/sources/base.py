@@ -6,7 +6,7 @@ Raw zone layout: ``data/raw/source=<name>/run=<run_id>/part-00000.parquet``
 from __future__ import annotations
 
 import json
-from collections.abc import Collection, Iterable, Iterator
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
@@ -114,3 +114,20 @@ def write_raw(
             flush()
     flush()
     return total, files
+
+
+def bbox_sql(
+    boxes: Mapping[str, Sequence[float]], countries: Collection[str], lon: str, lat: str
+) -> str:
+    """``AND (...)`` limiting a scan to the countries' [west, south, east, north] boxes.
+
+    Files are ordered by location, so this skips most of the planet. Empty unless every
+    requested country has a box. Rows without coordinates are kept.
+    """
+    if not countries or any(c not in boxes for c in countries):
+        return ""
+    parts = []
+    for country in sorted(countries):
+        west, south, east, north = (float(x) for x in boxes[country])
+        parts.append(f"({lon} BETWEEN {west} AND {east} AND {lat} BETWEEN {south} AND {north})")
+    return f"AND ({' OR '.join(parts)} OR {lat} IS NULL)"

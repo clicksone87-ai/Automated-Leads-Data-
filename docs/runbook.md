@@ -31,9 +31,10 @@ If port 5432 is already used on the host, set `DB_PORT=5433` in `.env` and use
 ### Foursquare OS Places
 
 The dataset is gated. Request access to `foursquare/fsq-os-places` on Hugging Face, create
-a read token and put it in `.env` as `HF_TOKEN`. Then set `sources.foursquare.uri` to the
-places parquet glob of a release (or to downloaded files) and `enabled: true`. A release
-whose columns changed fails with the missing column names.
+a read token and put it in `.env` as `HF_TOKEN`. The
+newest release is used unless `sources.foursquare.uri` points at other files. A release
+whose columns changed fails with the missing column names. Restart the worker after
+changing `.env`.
 
 ## 3. Schedules
 

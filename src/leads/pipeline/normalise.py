@@ -15,7 +15,7 @@ import polars as pl
 import tldextract
 from phonenumbers import PhoneNumberFormat, PhoneNumberType
 
-from leads.settings import CategoryConfig
+from leads.settings import CategoryConfig, FilterConfig, load_filters
 
 # --- phone -----------------------------------------------------------------------------
 
@@ -94,6 +94,12 @@ SHARED_HOSTING_DOMAINS = frozenset(
         "carrd.co",
         "ueniweb.com",
         "google.com",
+        "wix.com",
+        "webs.com",
+        "placeweb.site",
+        "bizsite.ie",
+        "sumupstore.com",
+        "mypixieset.com",
     }
 )
 
@@ -275,6 +281,34 @@ def map_category(source: str, category: str | None, config: CategoryConfig) -> s
     return config.default_group
 
 
+def is_platform(url: str | None, config: FilterConfig) -> bool:
+    """True for listing, booking and link pages that are not a business's own website."""
+    host = host_of(url)
+    domain = registered_domain(host)
+    if host is None or domain is None:
+        return False
+    if host in config.platform_domains or domain in config.platform_domains:
+        return True
+    return domain.split(".")[0] in config.platform_brands
+
+
+def is_non_business(
+    source: str, category: str | None, path: Collection[str], config: FilterConfig
+) -> bool:
+    """True for places that are not businesses (see config/filters.yaml).
+
+    ``path`` is the source's full category path, when it has one.
+    """
+    excluded = config.exclude_categories.get(source, ())
+    if not excluded:
+        return False
+    if source == "foursquare":
+        labels = [x.strip().lower() for x in (category or "").split("|") if x.strip()]
+        return bool(labels) and all(x.startswith(excluded) for x in labels)
+    own = (category or "").lower()
+    return not set(excluded).isdisjoint({own, f"={own}", *path})
+
+
 # --- frame-level -----------------------------------------------------------------------
 
 NORMALISED_SCHEMA: dict[str, Any] = {
@@ -289,6 +323,7 @@ NORMALISED_SCHEMA: dict[str, Any] = {
     "email": pl.String,
     "website": pl.String,
     "domain": pl.String,
+    "listing_url": pl.String,
     "address": pl.String,
     "city": pl.String,
     "region": pl.String,
@@ -307,6 +342,9 @@ def normalise_record(row: dict[str, Any], categories: CategoryConfig) -> dict[st
     country = normalise_country(row.get("country_iso2"))
     phone = normalise_phone(row.get("phone"), country)
     website = normalise_website(row.get("website"))
+    listing_url = None
+    if is_platform(website, load_filters()):
+        website, listing_url = None, website
     email = (row.get("email") or "").strip().lower() or None
     return {
         "source": row["source"],
@@ -320,6 +358,7 @@ def normalise_record(row: dict[str, Any], categories: CategoryConfig) -> dict[st
         "email": email,
         "website": website,
         "domain": normalise_domain(website),
+        "listing_url": listing_url,
         "address": normalise_whitespace(row.get("address")),
         "city": normalise_whitespace(row.get("city")),
         "region": normalise_whitespace(row.get("region")),

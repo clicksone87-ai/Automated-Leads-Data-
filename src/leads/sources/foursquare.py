@@ -7,21 +7,41 @@ Licence: Apache 2.0, attribution in exports. See docs/runbook.md for how to get 
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Collection, Iterator, Mapping, Sequence
 from datetime import date
 from typing import Any
 
 import duckdb
+import httpx
 
 from leads.pipeline.age import parse_date_loose
-from leads.sources.base import RawRecord
+from leads.sources.base import RawRecord, bbox_sql
 
 FETCH_BATCH = 10_000
 COLUMNS = (
     "fsq_place_id", "name", "latitude", "longitude", "address", "locality", "region", "postcode",
     "country", "date_created", "date_refreshed", "date_closed", "tel", "website", "email",
-    "facebook_id", "instagram", "twitter", "fsq_category_labels",
+    "facebook_id", "instagram", "twitter", "fsq_category_labels", "unresolved_flags",
 )  # fmt: skip
+
+
+DATASET = "datasets/foursquare/fsq-os-places"
+# Reports by Foursquare users that the place is not a real, open, public business.
+BAD_FLAGS = ("closed", "delete", "doesnt_exist", "duplicate", "inappropriate", "privatevenue")
+
+
+def latest_release_uri(hf_token: str, *, timeout: float = 60.0) -> str:
+    """Parquet glob of the newest release in the gated Hugging Face dataset."""
+    response = httpx.get(
+        f"https://huggingface.co/api/{DATASET}/tree/main/release",
+        headers={"Authorization": f"Bearer {hf_token}"},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    releases = sorted(x["path"] for x in response.json() if x["path"].startswith("release/dt="))
+    if not releases:
+        raise RuntimeError("No Foursquare releases found on Hugging Face")
+    return f"hf://{DATASET}/{releases[-1]}/places/parquet/*.parquet"
 
 
 def social_urls(facebook_id: Any, instagram: str | None, twitter: str | None) -> list[str]:
@@ -38,25 +58,37 @@ def social_urls(facebook_id: Any, instagram: str | None, twitter: str | None) ->
 class FoursquareSource:
     name = "foursquare"
 
-    def __init__(self, uri: str | None, hf_token: str | None = None) -> None:
+    def __init__(
+        self,
+        uri: str | None,
+        hf_token: str | None = None,
+        bbox: Mapping[str, Sequence[float]] | None = None,
+    ) -> None:
         self.uri = uri
         self.hf_token = hf_token
+        self.bbox = bbox or {}
 
     def _scan(self) -> str:
         if not self.uri:
-            raise ValueError(
-                "Foursquare is enabled but sources.foursquare.uri is not set in "
-                "config/settings.yaml (see docs/runbook.md)"
-            )
+            if not self.hf_token:
+                raise ValueError(
+                    "Foursquare needs HF_TOKEN in .env, or sources.foursquare.uri in "
+                    "config/settings.yaml (see docs/runbook.md)"
+                )
+            self.uri = latest_release_uri(self.hf_token)
         return "read_parquet('" + self.uri.replace("'", "''") + "')"
 
-    def build_query(self) -> str:
+    def build_query(self, countries: Collection[str] = ()) -> str:
+        flags = ", ".join(f"'{f}'" for f in BAD_FLAGS)
         return f"""
-            SELECT * REPLACE (array_to_string(fsq_category_labels, ' | ') AS fsq_category_labels)
+            SELECT * EXCLUDE (unresolved_flags)
+                REPLACE (array_to_string(fsq_category_labels, ' | ') AS fsq_category_labels)
             FROM (SELECT {", ".join(COLUMNS)} FROM {self._scan()})
             WHERE list_contains($countries, country)
               AND name IS NOT NULL
               AND date_closed IS NULL
+              AND NOT COALESCE(list_has_any(unresolved_flags, [{flags}]), false)
+              {bbox_sql(self.bbox, countries, "longitude", "latitude")}
         """
 
     def connect(self) -> duckdb.DuckDBPyConnection:
@@ -81,7 +113,7 @@ class FoursquareSource:
         ``date_created`` is when the place entered Foursquare, which the age resolver
         combines with other evidence.
         """
-        query = self.build_query()
+        query = self.build_query(countries)
         con = self.connect()
         self.check_columns(con)
         cursor = con.execute(query, {"countries": sorted(countries)})

@@ -21,7 +21,7 @@ UNKNOWN = AgeResult(created_date=None, age_source=None, age_unknown=True)
 
 def row(source: str, rid: str = "1", **kw: Any) -> dict[str, Any]:
     base = dict.fromkeys(
-        ("category", "phone_e164", "phone_type", "email", "website", "domain", "address", "city",
+        ("category", "phone_e164", "phone_type", "email", "website", "domain", "listing_url", "address", "city",
          "region", "postcode", "postcode_key", "lat", "lon", "created_date")
     )  # fmt: skip
     return {

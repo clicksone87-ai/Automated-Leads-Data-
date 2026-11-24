@@ -84,6 +84,7 @@ class SanctionsSettings(BaseModel):
 
 class MatchSettings(BaseModel):
     name_score_threshold: int = 90
+    shared_key_name_score: int = 75
     geo_radius_m: float = 50.0
     max_shared_key_group: int = 8
 
@@ -130,6 +131,7 @@ class Settings(BaseSettings):
     sanctions: SanctionsSettings = SanctionsSettings()
     match: MatchSettings = MatchSettings()
     refresh: RefreshSettings = RefreshSettings()
+    country_bbox: dict[str, tuple[float, float, float, float]] = {}
     sources: dict[str, dict[str, Any]] = {}
 
     @classmethod
@@ -229,4 +231,27 @@ def load_categories(path: Path | None = None) -> CategoryConfig:
         groups={str(k): str(v) for k, v in (data.get("groups") or {}).items()},
         exact=exact,
         keywords=keywords,
+    )
+
+
+# --- filters.yaml -----------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class FilterConfig:
+    exclude_categories: dict[str, tuple[str, ...]]  # source -> lower-cased entries
+    platform_domains: frozenset[str]
+    platform_brands: frozenset[str]
+
+
+@lru_cache(maxsize=4)
+def load_filters(path: Path | None = None) -> FilterConfig:
+    data = _read_yaml(path or config_dir() / "filters.yaml")
+    return FilterConfig(
+        exclude_categories={
+            source: tuple(str(x).lower() for x in entries or ())
+            for source, entries in (data.get("exclude_categories") or {}).items()
+        },
+        platform_domains=frozenset(str(x).lower() for x in data.get("platform_domains") or ()),
+        platform_brands=frozenset(str(x).lower() for x in data.get("platform_brands") or ()),
     )
