@@ -38,14 +38,14 @@ def existing(lead_id: str = "a", **kw: Any) -> ExistingLead:
     return ExistingLead(lead_id=lead_id, **values)
 
 
-def test_merge_prefers_trusted_source_and_fills_gaps() -> None:
+def test_merge_prefers_everyday_name_over_legal_name() -> None:
     merged = merge_fields(
         [
-            row("overture", name="acme", phone_e164="+441", phone_type="mobile", city="Leeds"),
-            row("companies_house", name="ACME LTD"),
+            row("overture", name="Acme", phone_e164="+441", phone_type="mobile", city="Leeds"),
+            row("companies_house", name="ACME LTD", region="Yorkshire"),
         ]
     )
-    assert merged["name"] == "ACME LTD"
+    assert (merged["name"], merged["region"]) == ("Acme", "Yorkshire")
     assert (merged["phone_e164"], merged["city"]) == ("+441", "Leeds")
     assert merged["sources"] == ["companies_house", "overture"]
 

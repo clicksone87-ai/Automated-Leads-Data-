@@ -193,6 +193,16 @@ class Outreach(Base):
     )
 
 
+class DomainAge(Base):
+    """Wayback Machine lookups, kept so each domain is asked about only once."""
+
+    __tablename__ = "domain_ages"
+
+    domain: Mapped[str] = mapped_column(primary_key=True)
+    first_capture: Mapped[date | None]  # NULL = never archived
+    checked_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class Suppression(Base):
     __tablename__ = "suppression"
 

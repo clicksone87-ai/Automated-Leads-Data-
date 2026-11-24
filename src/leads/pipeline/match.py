@@ -24,6 +24,7 @@ from typing import Any
 from rapidfuzz import fuzz
 
 from leads.pipeline.normalise import is_social_domain
+from leads.sources.registries import REGISTRY_SOURCES
 
 # Lower number = more trusted when picking the representative record / field values.
 SOURCE_PRIORITY: dict[str, int] = {
@@ -232,16 +233,23 @@ _MERGED_GROUPS: tuple[tuple[str, ...], ...] = (
 
 
 def sort_by_priority(rows: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Most useful record first. Registries come last: their name is the legal one and their
+    address is often an accountant's, while places carry what customers see."""
     return sorted(
         rows,
-        key=lambda r: (SOURCE_PRIORITY.get(r["source"], 9), r["source"], r["source_record_id"]),
+        key=lambda r: (
+            r["source"] in REGISTRY_SOURCES,
+            SOURCE_PRIORITY.get(r["source"], 9),
+            r["source"],
+            r["source_record_id"],
+        ),
     )
 
 
 def merge_fields(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     """Merge normalised rows of one cluster into a single lead row.
 
-    Each field takes the first non-empty value in SOURCE_PRIORITY order; ``created_date``
+    Each field takes the first non-empty value, places before registries; ``created_date``
     is resolved separately by ``pipeline.age``.
     """
     ordered = sort_by_priority(rows)

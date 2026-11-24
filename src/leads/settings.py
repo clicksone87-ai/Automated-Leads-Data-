@@ -89,6 +89,17 @@ class MatchSettings(BaseModel):
     max_shared_key_group: int = 8
 
 
+class RegistrySettings(BaseModel):
+    # Also keep new registered companies that list no phone, email or website.
+    uncontactable_leads: bool = False
+
+
+class WaybackSettings(BaseModel):
+    enabled: bool = True
+    daily_limit: int = 2000
+    seconds_per_request: float = 1.5
+
+
 class RefreshSettings(BaseModel):
     closed_after_missed_runs: int = 2
 
@@ -130,6 +141,8 @@ class Settings(BaseSettings):
     sender: SenderSettings = SenderSettings()
     sanctions: SanctionsSettings = SanctionsSettings()
     match: MatchSettings = MatchSettings()
+    registry: RegistrySettings = RegistrySettings()
+    wayback: WaybackSettings = WaybackSettings()
     refresh: RefreshSettings = RefreshSettings()
     country_bbox: dict[str, tuple[float, float, float, float]] = {}
     sources: dict[str, dict[str, Any]] = {}
@@ -209,6 +222,7 @@ class CategoryConfig:
     groups: dict[str, str]  # key -> display name
     exact: dict[str, dict[str, str]]  # source -> {lower-cased category: group}
     keywords: dict[str, tuple[str, ...]]  # group -> keywords
+    nace: dict[str, str]  # two-digit activity code -> group
 
     def display_name(self, group: str | None) -> str:
         key = group or self.default_group
@@ -231,6 +245,7 @@ def load_categories(path: Path | None = None) -> CategoryConfig:
         groups={str(k): str(v) for k, v in (data.get("groups") or {}).items()},
         exact=exact,
         keywords=keywords,
+        nace={str(k): str(v) for k, v in (data.get("nace") or {}).items()},
     )
 
 

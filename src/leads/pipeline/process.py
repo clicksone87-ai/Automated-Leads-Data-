@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -39,7 +39,11 @@ from leads.pipeline.normalise import (
     normalise_country,
     normalise_domain,
     normalise_frame,
+    normalise_name,
+    normalise_phone,
+    normalise_postcode,
 )
+from leads.pipeline.wayback import load_first_captures
 from leads.settings import Settings, get_settings, load_categories, load_countries, load_filters
 from leads.sources.base import RAW_SCHEMA, raw_dir
 from leads.sources.registries import REGISTRY_SOURCES
@@ -109,12 +113,76 @@ def _read_country(directory: Path, spellings: set[str]) -> pl.DataFrame:
     return _scan(directory).filter(pl.col("country_iso2").is_in(sorted(spellings))).collect()
 
 
+def _has_country(directory: Path, spellings: set[str]) -> bool:
+    wanted = pl.col("country_iso2").is_in(sorted(spellings))
+    return bool(_scan(directory).select(wanted.any()).collect().item())
+
+
+@dataclass(frozen=True, slots=True)
+class PlaceKeys:
+    """Identifying values of one country's places, to pick the registry rows that matter."""
+
+    name_postcodes: frozenset[tuple[str, str]]
+    postcodes: frozenset[str]
+    phones: frozenset[str]
+    domains: frozenset[str]
+
+    @classmethod
+    def of(cls, rows: Iterable[dict[str, Any]]) -> PlaceKeys:
+        rows = list(rows)
+        pairs = {(r["name_norm"], r["postcode_key"]) for r in rows if r["postcode_key"]}
+        return cls(
+            name_postcodes=frozenset(pairs),
+            postcodes=frozenset(p for _, p in pairs),
+            phones=frozenset(r["phone_e164"] for r in rows if r["phone_e164"]),
+            domains=frozenset(r["domain"] for r in rows if r["domain"]),
+        )
+
+
+def _wanted_registry_row(row: dict[str, Any], keys: PlaceKeys, settings: Settings) -> bool:
+    postcode = normalise_postcode(row["postcode"])
+    if (
+        postcode in keys.postcodes
+        and (normalise_name(row["name"]), postcode) in keys.name_postcodes
+    ):
+        return True
+    contactable = bool(row["email"] or row["phone"] or row["website"])
+    if contactable or settings.registry.uncontactable_leads:
+        created = row["created_date"]
+        if created is not None and created >= settings.since:
+            return True
+    if contactable:
+        phone = normalise_phone(row["phone"], normalise_country(row["country_iso2"]))
+        if phone and phone.e164 in keys.phones:
+            return True
+        return normalise_domain(row["website"]) in keys.domains
+    return False
+
+
+def _registry_rows(
+    directory: Path, spellings: set[str], keys: PlaceKeys, settings: Settings
+) -> Iterator[pl.DataFrame]:
+    """Registry rows matching a known place, or able to be leads themselves.
+
+    Registries list millions of companies, so they are read part by part.
+    """
+    for path in sorted(directory.glob("*.parquet")):
+        frame = pl.read_parquet(path, hive_partitioning=False).filter(
+            pl.col("country_iso2").is_in(sorted(spellings))
+        )
+        mask = [_wanted_registry_row(r, keys, settings) for r in frame.iter_rows(named=True)]
+        wanted = frame.filter(pl.Series(mask, dtype=pl.Boolean))
+        if wanted.height:
+            yield wanted
+
+
 def _load_country(
     country: str,
     spellings: set[str],
     current: dict[str, Path],
     earlier: dict[str, list[Path]],
     run_countries: frozenset[str],
+    settings: Settings,
 ) -> CountryInput:
     categories, filters = load_categories(), load_filters()
     result = CountryInput(rows=[], current=[])
@@ -136,14 +204,20 @@ def _load_country(
             result.rows.append({**row, "raw": details})
             result.current.append(is_current)
 
-    for directory in current.values():
-        add(_read_country(directory, spellings), True)
-    for runs in earlier.values():
-        for directory in runs:
-            frame = _read_country(directory, spellings | {country})
-            if frame.height:
-                add(frame, False)
-                break
+    inputs: list[tuple[str, Path, bool]] = [(s, d, True) for s, d in current.items()]
+    for source, runs in earlier.items():
+        newest = next((d for d in runs if _has_country(d, spellings | {country})), None)
+        if newest:
+            inputs.append((source, newest, False))
+
+    for source, directory, is_current in inputs:
+        if source not in REGISTRY_SOURCES:
+            add(_read_country(directory, spellings | {country}), is_current)
+    keys = PlaceKeys.of(result.rows)
+    for source, directory, is_current in inputs:
+        if source in REGISTRY_SOURCES:
+            for frame in _registry_rows(directory, spellings | {country}, keys, settings):
+                add(frame, is_current)
     return result
 
 
@@ -167,7 +241,9 @@ def to_match_record(row: dict[str, Any]) -> MatchRecord:
     )
 
 
-def age_evidence(rows: Sequence[dict[str, Any]]) -> AgeEvidence:
+def age_evidence(
+    rows: Sequence[dict[str, Any]], first_captures: Mapping[str, date] | None = None
+) -> AgeEvidence:
     """Earliest date each kind of source gives for one business."""
 
     def earliest(sources: Iterable[str]) -> date | None:
@@ -175,7 +251,10 @@ def age_evidence(rows: Sequence[dict[str, Any]]) -> AgeEvidence:
         dates = [r["created_date"] for r in rows if r["source"] in wanted and r["created_date"]]
         return min(dates, default=None)
 
+    known = first_captures or {}
+    captures = [known[r["domain"]] for r in rows if r["domain"] in known]
     return AgeEvidence(
+        wayback_first_capture=min(captures, default=None),
         registry=earliest(REGISTRY_SOURCES),
         fsq_date_created=earliest(("foursquare",)),
         osm_first_version=earliest(("osm",)),
@@ -404,6 +483,7 @@ def load_country(
     known_ids = _existing_ids(session, rows, chunk)
     stored = _existing_leads(session, sorted(set(known_ids.values())), chunk)
 
+    captures = load_first_captures(session, {r["domain"] for r in rows if r["domain"]}, chunk)
     counts: Counter[str] = Counter(
         rows=sum(data.current), clusters=len(clusters), not_business=data.excluded
     )
@@ -418,7 +498,7 @@ def load_country(
     for members in clusters:
         if any(data.current[i] for i in members):
             group = [rows[i] for i in members]
-            candidates.append((members, group, resolve_age(age_evidence(group))))
+            candidates.append((members, group, resolve_age(age_evidence(group, captures))))
     # Too-old clusters go last, so they never take a lead that a kept cluster still needs.
     candidates.sort(key=lambda c: not _keep(c[2], settings))
 
@@ -514,7 +594,7 @@ def process_run(run_id: uuid.UUID | str) -> dict[str, Any]:
     totals["countries_skipped"] = sum(1 for c in spellings if c not in included)
     try:
         for country in sorted(c for c in spellings if c in included):
-            data = _load_country(country, spellings[country], current, earlier, included)
+            data = _load_country(country, spellings[country], current, earlier, included, settings)
             with session_scope() as session:
                 totals += load_country(
                     session, data, run_id=run_uuid, seen_at=seen_at, settings=settings

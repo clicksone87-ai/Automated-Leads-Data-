@@ -39,8 +39,7 @@ def _osm(s: Settings) -> Source:
 def _companies_house(s: Settings) -> Source:
     from leads.sources.registries.companies_house import CompaniesHouseSource
 
-    key = s.companies_house_api_key.get_secret_value() if s.companies_house_api_key else None
-    return CompaniesHouseSource(api_key=key, data_dir=s.data_dir)
+    return CompaniesHouseSource(data_dir=s.data_dir)
 
 
 def _sirene(s: Settings) -> Source:

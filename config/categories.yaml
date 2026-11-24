@@ -74,3 +74,33 @@ keywords:
   pets: [pet, vet, veterinar, dog, grooming]
   events_entertainment: [event, wedding, photograph, dj, entertainment, venue]
   retail: [shop, store, boutique, retail, florist, jewel, clothing]
+
+# First two digits of the activity code used by registries (NACE / NAF / UK SIC).
+nace:
+  "10": food_drink
+  "41": trades_construction
+  "42": trades_construction
+  "43": trades_construction
+  "45": automotive
+  "47": retail
+  "55": hospitality
+  "56": food_drink
+  "62": professional_services
+  "63": professional_services
+  "64": professional_services
+  "65": professional_services
+  "66": professional_services
+  "68": real_estate
+  "69": professional_services
+  "70": professional_services
+  "71": professional_services
+  "73": professional_services
+  "74": professional_services
+  "75": pets
+  "81": home_services
+  "85": education
+  "86": health_medical
+  "90": events_entertainment
+  "93": fitness_sports
+  "95": home_services
+  "96": beauty_wellness

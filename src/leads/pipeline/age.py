@@ -110,8 +110,7 @@ def wayback_first_capture(
 ) -> date | None:
     """Earliest Wayback Machine capture of ``domain`` via the CDX API (None if never archived).
 
-    TODO(build step 3): call this only for leads still missing real age evidence, cache
-    results, and stay well under archive.org rate limits.
+    Callers cache results and pace requests (see ``pipeline.wayback``).
     """
     response = client.get(
         "https://web.archive.org/cdx/search/cdx",
@@ -119,7 +118,7 @@ def wayback_first_capture(
         timeout=timeout,
     )
     response.raise_for_status()
-    rows = response.json()
+    rows = response.json() if response.text.strip() else []
     if len(rows) < 2:  # first row is the header
         return None
     return parse_date_loose(str(rows[1][0])[:8])

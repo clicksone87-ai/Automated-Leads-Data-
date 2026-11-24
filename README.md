@@ -114,7 +114,7 @@ Each item maps to `TODO(build step N)` markers in the code.
 
 - [x] **1. Project setup**: repo, uv, Docker Compose, settings, DB schema + Alembic, CI (ruff, mypy, pytest)
 - [ ] **2. Overture + Foursquare loaders** for 2–3 test countries, normalise, country filter (`sources/overture.py`, `sources/foursquare.py`, `pipeline/__init__.py`) — Overture done (tested on MT, IE); Foursquare tested on MT
-- [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`)
+- [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`) — loaders written; UK (Leeds–Manchester) tested end to end, Canada file loaded, Norway, France and Australia not yet loaded
 - [ ] **4. Website checker + email/WhatsApp extractor**: wire `check_pending` to the DB (`enrich/website.py`; classifier and extractors are done)
 - [ ] **5. Dedupe/match + CSV export + Metabase**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
 - [ ] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)

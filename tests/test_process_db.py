@@ -9,12 +9,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from sqlalchemy import func, select, text
 
 import leads.db as db
-from leads.models import Base, Lead, LeadSource, LeadStatus, Outreach, Run
-from leads.pipeline import process
+from leads.models import Base, DomainAge, Lead, LeadSource, LeadStatus, Outreach, Run
+from leads.pipeline import process, wayback
 from leads.settings import Settings
 from leads.sources.base import RawRecord, write_raw
 
@@ -202,6 +203,99 @@ def test_non_businesses_and_platform_pages(data_dir: Path) -> None:
     assert (lead.name, lead.website, lead.domain) == ("Blue Cafe", None, None)
     assert lead.socials == {"listing": "https://linktr.ee/blue"}
     assert counts["not_business"] == 1
+
+
+def test_registry_dates_a_place_and_removes_an_old_one(data_dir: Path) -> None:
+    place = {"country_iso2": "GB", "postcode": "LS1 4AP"}
+    counts = run(
+        data_dir,
+        rec("overture", "1", "Blue Cafe", **place),
+        rec("overture", "2", "Old Inn", **place),
+        rec("companies_house", "01", "BLUE CAFE LTD", created_date=date(2019, 1, 31), **place),
+        rec("companies_house", "02", "OLD INN LIMITED", created_date=date(1990, 1, 1), **place),
+        rec("companies_house", "03", "UNRELATED LTD", created_date=date(2020, 1, 1), **place),
+    )
+    (lead,) = leads()
+    assert (lead.name, lead.age_source) == ("Blue Cafe", "registry")
+    assert (lead.created_date, lead.age_unknown) == (date(2019, 1, 31), False)
+    assert counts["too_old"] == 1
+
+
+def test_registry_collected_after_the_places(data_dir: Path) -> None:
+    place = {"country_iso2": "GB", "postcode": "LS1 4AP"}
+    run(data_dir, rec("overture", "1", "Blue Cafe", **place))
+    run(data_dir, rec("companies_house", "01", "Blue Cafe Ltd", created_date=date(2019, 1, 31),
+                      **place))  # fmt: skip
+    (lead,) = leads()
+    assert (lead.age_source, lead.sources) == ("registry", ["companies_house", "overture"])
+
+
+def test_contactable_new_company_is_a_lead_of_its_own(data_dir: Path) -> None:
+    run(
+        data_dir,
+        rec("brreg", "1", "Ny AS", country_iso2="NO", email="post@ny.no",
+            category="56.110 Restauranter", created_date=date(2024, 1, 1)),
+        rec("brreg", "2", "Gammel AS", country_iso2="NO", email="post@gammel.no",
+            created_date=date(1990, 1, 1)),
+        rec("brreg", "3", "Stille AS", country_iso2="NO", created_date=date(2024, 1, 1)),
+    )  # fmt: skip
+    (lead,) = leads()
+    assert (lead.name, lead.email) == ("Ny AS", "post@ny.no")
+    assert (lead.category_group, lead.age_source) == ("food_drink", "registry")
+
+
+@pytest.fixture
+def archive(monkeypatch: pytest.MonkeyPatch) -> dict[str, date | None]:
+    captures: dict[str, date | None] = {}
+
+    def lookup(domain: str, **_: Any) -> date | None:
+        if domain not in captures:
+            raise httpx.ConnectError("down")
+        return captures[domain]
+
+    monkeypatch.setattr(wayback, "wayback_first_capture", lookup)
+    monkeypatch.setattr(wayback.time, "sleep", lambda _: None)
+    monkeypatch.setattr(wayback, "get_settings", db.get_settings)
+    return captures
+
+
+def test_wayback_dates_removes_and_remembers(
+    data_dir: Path, archive: dict[str, date | None]
+) -> None:
+    records = [
+        rec("overture", str(i), name, website=f"https://{name}.com")
+        for i, name in enumerate(("fresh", "ancient", "unseen"))
+    ]
+    run(data_dir, *records)
+    archive |= {"fresh.com": date(2021, 1, 1), "ancient.com": date(2005, 1, 1)}
+    archive["unseen.com"] = None
+    counts = wayback.check_wayback()
+    assert counts == {"checked": 3, "dated": 1, "too_old": 1, "not_archived": 1, "failed": 0}
+    assert [(x.name, x.age_source) for x in leads()] == [
+        ("fresh", "wayback"),
+        ("unseen", "first_seen"),
+    ]
+    assert wayback.check_wayback()["checked"] == 0
+    run(data_dir, *records)
+    assert [x.name for x in leads()] == ["fresh", "unseen"]
+
+
+def test_wayback_closes_a_contacted_lead(data_dir: Path, archive: dict[str, date | None]) -> None:
+    run(data_dir, rec("overture", "1", "Old Inn", website="https://inn.com"))
+    add_outreach(leads()[0].lead_id)
+    archive["inn.com"] = date(2005, 1, 1)
+    wayback.check_wayback()
+    assert leads()[0].status == LeadStatus.CLOSED
+    assert count(Outreach) == 1
+
+
+def test_wayback_stops_when_the_archive_is_down(
+    data_dir: Path, archive: dict[str, date | None]
+) -> None:
+    run(data_dir, *(rec("overture", str(i), f"n{i}", website=f"https://n{i}.com")
+                    for i in range(9)))  # fmt: skip
+    assert wayback.check_wayback()["failed"] == wayback.MAX_FAILURES_IN_A_ROW
+    assert count(DomainAge) == 0
 
 
 def test_unknown_run(data_dir: Path) -> None:

@@ -59,6 +59,16 @@ match:
   geo_radius_m: 50
   max_shared_key_group: 8       # a domain/phone shared by more records is treated as a chain, not a key
 
+registry:
+  # Registries mainly date businesses found elsewhere. A new company is also a lead of its own
+  # when it lists a phone, email or website; true keeps the uncontactable ones too (millions).
+  uncontactable_leads: false
+
+wayback:                        # first capture of a lead's own website, as age evidence
+  enabled: true
+  daily_limit: 2000             # domains per day, leads with an email first
+  seconds_per_request: 1.5      # archive.org asks for about 1 request per second
+
 refresh:
   closed_after_missed_runs: 2
 

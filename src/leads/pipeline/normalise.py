@@ -264,6 +264,10 @@ def in_scope(country_iso2: str | None, countries: Collection[str]) -> bool:
     return country_iso2 is not None and country_iso2 in countries
 
 
+# Registries whose category starts with a NACE-based activity code.
+NACE_SOURCES = frozenset({"companies_house", "brreg", "sirene"})
+
+
 # --- category --------------------------------------------------------------------------
 
 
@@ -275,6 +279,8 @@ def map_category(source: str, category: str | None, config: CategoryConfig) -> s
     exact = config.exact.get(source, {}).get(lowered)
     if exact:
         return exact
+    if source in NACE_SOURCES:
+        return config.nace.get(lowered[:2], config.default_group)
     for group, words in config.keywords.items():
         if any(word in lowered for word in words):
             return group

@@ -123,6 +123,16 @@ def sheet() -> None:
 
 
 @app.command()
+def wayback(
+    limit: Annotated[int | None, typer.Option(help="Max domains to look up")] = None,
+) -> None:
+    """Date unknown-age leads from the first archived copy of their website."""
+    from leads.pipeline.wayback import check_wayback
+
+    _run(check_wayback, limit)
+
+
+@app.command()
 def refresh(run_id: Annotated[str | None, typer.Argument()] = None) -> None:
     """Monthly refresh: last_seen, close missing leads, queue website re-checks."""
     from leads.pipeline.refresh import run_refresh

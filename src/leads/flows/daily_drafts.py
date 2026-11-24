@@ -16,6 +16,13 @@ def check_new_websites() -> dict[str, int]:
     return check_pending(recheck=False)
 
 
+@task
+def date_leads() -> dict[str, int]:
+    from leads.pipeline.wayback import check_wayback
+
+    return check_wayback()
+
+
 @task(retries=2, retry_delay_seconds=120)
 def create_drafts(batch_size: int | None) -> dict[str, int]:
     from leads.outreach.gmail_drafts import create_daily_drafts
@@ -35,6 +42,7 @@ def daily_drafts(batch_size: int | None = None) -> dict[str, Any]:
     run_id = start_run("daily-drafts")
     counts: dict[str, Any] = {}
     try:
+        counts["wayback"] = date_leads()
         counts["websites"] = check_new_websites()
         counts["drafts"] = create_drafts(batch_size)
         counts["sheet"] = update_sheet()
