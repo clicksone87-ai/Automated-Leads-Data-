@@ -12,6 +12,7 @@ from pathlib import Path
 
 from prefect import flow, get_run_logger
 
+from leads.db import finish_run, start_run
 from leads.settings import get_settings
 
 MAX_AGE_HOURS = 26
@@ -38,6 +39,12 @@ def verify_backup(backups_dir: Path, *, now: float | None = None) -> Path:
 
 @flow(name="backup-check", log_prints=True)
 def backup_check() -> str:
-    path = verify_backup(get_settings().backups_dir)
+    run_id = start_run("backup-check")
+    try:
+        path = verify_backup(get_settings().backups_dir)
+    except Exception:
+        finish_run(run_id, "failed")
+        raise
+    finish_run(run_id, "success", {"bytes": path.stat().st_size})
     get_run_logger().info("backup ok: %s (%d bytes)", path.name, path.stat().st_size)
     return path.name

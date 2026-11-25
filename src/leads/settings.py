@@ -50,6 +50,7 @@ class BatchSettings(BaseModel):
 class WebsiteSettings(BaseModel):
     timeout_seconds: float = 12.0
     max_requests_per_domain: int = 2
+    daily_limit: int = 3000
     respect_robots_txt: bool = True
     user_agent: str = "lead-automation/0.1"
     recheck_after_days: int = 30
@@ -59,6 +60,7 @@ class WebsiteSettings(BaseModel):
 
 class OutreachSettings(BaseModel):
     followup_after_days: int = 6
+    auto_drafts: bool = False
     default_language: str = "en"
     delivery_days: int = 7
     price: str = ""
@@ -105,8 +107,19 @@ class WaybackSettings(BaseModel):
     seconds_per_request: float = 1.5
 
 
+class CollectSettings(BaseModel):
+    # ISO-2 codes the monthly run collects; empty = every country in countries.yaml.
+    countries: list[str] = []
+
+    def codes(self, included: frozenset[str]) -> frozenset[str]:
+        return frozenset(c.upper() for c in self.countries) & included or (
+            included if not self.countries else frozenset()
+        )
+
+
 class RefreshSettings(BaseModel):
     closed_after_missed_runs: int = 2
+    max_closed_share: float = 0.2
 
 
 class Settings(BaseSettings):
@@ -151,6 +164,7 @@ class Settings(BaseSettings):
     match: MatchSettings = MatchSettings()
     registry: RegistrySettings = RegistrySettings()
     wayback: WaybackSettings = WaybackSettings()
+    collect: CollectSettings = CollectSettings()
     refresh: RefreshSettings = RefreshSettings()
     country_bbox: dict[str, tuple[float, float, float, float]] = {}
     sources: dict[str, dict[str, Any]] = {}

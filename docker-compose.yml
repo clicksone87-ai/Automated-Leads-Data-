@@ -27,14 +27,15 @@ services:
       retries: 20
 
   prefect-server:
-    image: prefecthq/prefect:3-python3.12
+    build: .
+    image: lead-automation-worker:latest
     restart: unless-stopped
     command: ["prefect", "server", "start", "--host", "0.0.0.0"]
     environment:
       PREFECT_UI_API_URL: http://localhost:4200/api
       PREFECT_SERVER_ANALYTICS_ENABLED: "false"
     volumes:
-      - prefect-data:/root/.prefect
+      - prefect-data:/home/app/.prefect
     ports:
       - "127.0.0.1:4200:4200"
     healthcheck:
@@ -75,8 +76,11 @@ services:
     command: ["leads", "dashboard", "--host", "0.0.0.0"]
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leads}:${POSTGRES_PASSWORD:-leads}@db:5432/${POSTGRES_DB:-leads}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GMAIL_ACCOUNT: ${GMAIL_ACCOUNT:-}
       TZ: ${TZ:-UTC}
     volumes:
+      - ./data:/app/data
       - ./secrets:/app/secrets:ro
       - ./config:/app/config:ro
     ports:
@@ -98,7 +102,8 @@ services:
       - ./config:/app/config:ro
 
   backup:
-    image: postgres:16
+    image: postgis/postgis:16-3.4  # same image as db: pg_dump of the same version
+    platform: linux/amd64
     restart: unless-stopped
     environment:
       PGHOST: db

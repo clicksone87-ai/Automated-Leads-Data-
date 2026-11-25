@@ -17,7 +17,7 @@ from leads.outreach.templates import (
     render,
     template_path,
 )
-from leads.pipeline.sanctions import SdnEntry, match_sanctions
+from leads.pipeline.sanctions import SdnEntry, load_sdn, match_sanctions
 from leads.settings import SenderSettings
 
 
@@ -159,3 +159,8 @@ class TestSanctions:
 
     def test_different_name(self) -> None:
         assert match_sanctions("Rosie's Bakery", "AE", self.ENTRIES) is None
+
+    def test_ships_are_left_out(self, tmp_path: Path) -> None:
+        path = tmp_path / "sdn.csv"
+        path.write_text('1,"PREMIER","vessel"\n2,"ACME LLC",-0- \n', encoding="latin-1")
+        assert [e.name for e in load_sdn(path)] == ["ACME LLC"]

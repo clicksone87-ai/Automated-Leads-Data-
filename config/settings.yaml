@@ -8,9 +8,9 @@ since: 2018-01-01
 # This flag controls whether they appear in exports, the Sheet and daily drafts.
 include_unknown_age: true
 
-# Time zone for all Prefect schedules (IANA name). TODO: set to your local zone,
-# and set TZ in .env to the same value (used by the backup container).
-timezone: UTC
+# Time zone for all Prefect schedules (IANA name). Set TZ in .env to the same value
+# (used by the backup container).
+timezone: Asia/Karachi
 
 schedules:              # cron expressions, evaluated in `timezone`
   monthly_collect: "0 2 1 * *"   # 1st of month 02:00: collect + refresh
@@ -25,6 +25,7 @@ batch:
   raw_chunk_size: 100000        # rows per raw parquet part file
 
 website:
+  daily_limit: 3000             # leads checked per day, the most useful first
   timeout_seconds: 12
   # Page requests per domain (home + one contact page). robots.txt is fetched once
   # per domain in addition to this budget.
@@ -36,6 +37,9 @@ website:
   min_text_chars: 100           # visible text needed for "working" (200 + real content)
 
 outreach:
+  # false: drafts are made one by one from the dashboard. true: the daily run also writes up
+  # to batch.drafts_per_day drafts by itself.
+  auto_drafts: false
   followup_after_days: 6
   default_language: en
   delivery_days: 7
@@ -73,13 +77,17 @@ wayback:                        # first capture of a lead's own website, as age 
   daily_limit: 2000             # domains per day, leads with an email first
   seconds_per_request: 1.5      # archive.org asks for about 1 request per second
 
+collect:
+  countries: [GB, IE, MT]       # the monthly run; [] = every country in countries.yaml
+
 refresh:
   closed_after_missed_runs: 2
+  max_closed_share: 0.2         # more missing than this is a broken source, so nothing is closed
 
 # [west, south, east, north] per country. Used only when every requested country has a
 # box; it avoids scanning the whole planet for a few test countries.
 country_bbox:
-  GB: [-8.8, 49.8, 2.0, 61.0]
+  GB: [-2.35, 53.35, -1.40, 53.90]     # Leeds to Manchester; whole GB: [-8.8, 49.8, 2.0, 61.0]
   IE: [-10.8, 51.3, -5.9, 55.5]
   MT: [14.1, 35.7, 14.7, 36.2]
 

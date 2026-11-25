@@ -7,13 +7,14 @@ from typing import Any
 from prefect import flow, task
 
 from leads.db import finish_run, start_run
+from leads.settings import get_settings
 
 
 @task
 def check_new_websites() -> dict[str, int]:
     from leads.enrich.check import check_pending
 
-    return check_pending(recheck=False)
+    return check_pending(get_settings().website.daily_limit, recheck=True)
 
 
 @task
@@ -33,7 +34,6 @@ def create_drafts(batch_size: int | None) -> dict[str, int]:
 @task(retries=2, retry_delay_seconds=120)
 def update_sheet() -> dict[str, int]:
     from leads.export.sheets import update_sheet as _update_sheet
-    from leads.settings import get_settings
 
     if not get_settings().google_sheet_id:
         return {"rows": 0}
@@ -48,7 +48,8 @@ def daily_drafts(batch_size: int | None = None) -> dict[str, Any]:
     try:
         counts["wayback"] = date_leads()
         counts["websites"] = check_new_websites()
-        counts["drafts"] = create_drafts(batch_size)
+        if get_settings().outreach.auto_drafts:
+            counts["drafts"] = create_drafts(batch_size)
         counts["sheet"] = update_sheet()
     except Exception:
         finish_run(run_id, "failed", counts)

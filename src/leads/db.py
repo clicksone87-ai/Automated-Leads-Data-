@@ -62,6 +62,15 @@ def start_run(flow: str) -> uuid.UUID:
     return run.run_id
 
 
+def save_counts(run_id: uuid.UUID, counts: dict[str, Any]) -> None:
+    """Store the counters of a run that is still going."""
+    from leads.models import Run
+
+    with session_scope() as session:
+        if run := session.get(Run, run_id):
+            run.counts = dict(counts)
+
+
 def finish_run(run_id: uuid.UUID, status: str, counts: dict[str, Any] | None = None) -> None:
     """Mark a run finished ('success' / 'failed') and store its counters."""
     from leads.models import Run

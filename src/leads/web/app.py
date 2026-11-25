@@ -254,9 +254,22 @@ def add_suppression(body: OptOut, db: DB) -> dict[str, str]:
 def setup(db: DB) -> dict[str, Any]:
     settings = get_settings()
     stats = queries.overview(db)
+    last = queries.last_runs(db)
     return {
         "state": setup_state(settings),
         "warnings": drafts.warnings(settings),
+        "schedule": [
+            {"name": name, "cron": cron, "last": last.get(name)}
+            for name, cron in (
+                ("gmail-sync", settings.schedules.gmail_sync),
+                ("daily-drafts", settings.schedules.daily_drafts),
+                ("monthly-collect", settings.schedules.monthly_collect),
+                ("backup-check", settings.schedules.backup_check),
+            )
+        ],
+        "timezone": settings.timezone,
+        "auto_drafts": settings.outreach.auto_drafts,
+        "countries": settings.collect.countries,
         "since": settings.since,
         "drafts_per_day": settings.batch.drafts_per_day,
         "followup_after_days": settings.outreach.followup_after_days,

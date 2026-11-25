@@ -28,8 +28,8 @@ COPY alembic.ini ./
 RUN uv sync --frozen --no-dev
 
 RUN useradd --create-home --uid 1000 app \
-    && mkdir -p /app/data /app/secrets /app/backups \
-    && chown -R app:app /app/data /app/secrets /app/backups
+    && mkdir -p /app/data /app/secrets /app/backups /home/app/.prefect \
+    && chown -R app:app /app/data /app/secrets /app/backups /home/app/.prefect
 USER app
 
 CMD ["python", "-m", "leads.deploy"]

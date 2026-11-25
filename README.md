@@ -120,7 +120,7 @@ Each item maps to `TODO(build step N)` markers in the code.
 - [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`) — loaders written; UK (Leeds–Manchester) tested end to end, Canada file loaded, Norway, France and Australia not yet loaded
 - [x] **4. Website checker + email/WhatsApp extractor** (`enrich/website.py`, `enrich/check.py`); a status is set only on proof, anything unclear stays empty
 - [x] **5. Dedupe/match + CSV export + dashboard**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
-- [ ] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)
+- [x] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)
 - [ ] **7. AI emails, Gmail drafts, labels, Gmail sync, follow-ups, opt-outs, sanctions check: done for English-speaking countries. Left: Google Sheet view, other languages** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
 - [ ] **8. Scale to all countries**, OSM history, more registries (`sources/osm.py`)
 - [ ] **9. Licensed directory feeds** (optional, `sources/directories.py`)

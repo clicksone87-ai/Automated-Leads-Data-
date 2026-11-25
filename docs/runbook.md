@@ -43,8 +43,8 @@ Defined in `config/settings.yaml` → `schedules` and evaluated in `timezone`.
 
 | Deployment | Cron (default) | Does |
 |---|---|---|
-| monthly-collect | `0 2 1 * *` | collect → process → sanctions → refresh → website re-checks |
-| daily-drafts | `0 7 * * *` | website checks for new leads → Gmail drafts → Sheet |
+| monthly-collect | `0 2 1 * *` | collect (`collect.countries`) → process → sanctions → close missing leads |
+| daily-drafts | `0 7 * * *` | website checks and re-checks (`website.daily_limit`) → opening dates → drafts if `outreach.auto_drafts` → Sheet |
 | gmail-sync | `*/30 * * * *` | sent / replied / bounced / opt-out, follow-up drafts |
 | backup-check | `30 3 * * *` | verify the 03:00 dump from the `backup` container |
 

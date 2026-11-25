@@ -253,6 +253,7 @@ def overview(session: Session) -> dict[str, Any]:
             dict(r)
             for r in session.execute(
                 select(Run.flow, Run.status, Run.started_at, Run.finished_at, Run.counts)
+                .where(Run.flow.not_in(("gmail-sync", "backup-check")))
                 .order_by(Run.started_at.desc())
                 .limit(10)
             ).mappings()
@@ -260,6 +261,16 @@ def overview(session: Session) -> dict[str, Any]:
     }
     _stats_cache = (time.monotonic(), result)
     return result
+
+
+def last_runs(session: Session) -> dict[str, dict[str, Any]]:
+    """Newest run of every flow."""
+    stmt = (
+        select(Run.flow, Run.status, Run.started_at, Run.finished_at)
+        .distinct(Run.flow)
+        .order_by(Run.flow, Run.started_at.desc())
+    )
+    return {r["flow"]: dict(r) for r in session.execute(stmt).mappings()}
 
 
 def clear_cache() -> None:

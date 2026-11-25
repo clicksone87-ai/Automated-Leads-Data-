@@ -28,6 +28,8 @@ from leads.settings import Settings, get_settings
 log = structlog.get_logger(__name__)
 
 SDN_NULL = "-0-"
+# Ships and planes share names such as "Premier" or "Amber" with ordinary shops.
+NOT_BUSINESSES = frozenset({"vessel", "aircraft"})
 
 # OFAC address files use English country names. A name missing here leaves the entry without
 # a country, so it matches everywhere.
@@ -123,7 +125,7 @@ def load_sdn(sdn_csv: Path, add_csv: Path | None = None) -> list[SdnEntry]:
     entries: list[SdnEntry] = []
     with sdn_csv.open(encoding="latin-1", newline="") as fh:
         for row in csv.reader(fh):
-            if len(row) < 3 or not _clean(row[1]):
+            if len(row) < 3 or not _clean(row[1]) or _clean(row[2]).lower() in NOT_BUSINESSES:
                 continue
             ent = row[0].strip()
             name = _clean(row[1])

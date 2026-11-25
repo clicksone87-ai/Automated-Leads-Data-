@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import uuid
 from collections.abc import Iterator
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +15,8 @@ from sqlalchemy import func, select, text
 
 import leads.db as db
 from leads.models import Base, DomainAge, Lead, LeadSource, LeadStatus, Outreach, Run
-from leads.pipeline import process, wayback
-from leads.settings import Settings
+from leads.pipeline import process, refresh, wayback
+from leads.settings import CollectSettings, Settings
 from leads.sources.base import RawRecord, write_raw
 
 URL = os.environ.get("TEST_DATABASE_URL")
@@ -301,3 +301,84 @@ def test_wayback_stops_when_the_archive_is_down(
 def test_unknown_run(data_dir: Path) -> None:
     with pytest.raises(FileNotFoundError):
         process.process_run(uuid.uuid4())
+
+
+def _monthly(
+    days_ago: int, areas: dict[str, Any], sources: list[str], status: str = "success"
+) -> Run:
+    return Run(
+        run_id=uuid.uuid4(),
+        flow="monthly-collect",
+        started_at=datetime.now(UTC) - timedelta(days=days_ago),
+        status=status,
+        counts={"coverage": {"sources": sources, "areas": areas}},
+    )
+
+
+def _seen(lead_id: str, days_ago: int, source: str, lon: float = 14.5) -> list[Any]:
+    return [
+        Lead(lead_id=lead_id, name=lead_id, country_iso2="MT", geom=f"SRID=4326;POINT({lon} 35.9)",
+             last_seen=datetime.now(UTC) - timedelta(days=days_ago)),
+        LeadSource(lead_id=lead_id, source=source, source_record_id=lead_id),
+    ]  # fmt: skip
+
+
+BOX = {"MT": [14.1, 35.7, 14.7, 36.2]}
+
+
+@pytest.fixture
+def refresh_db(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
+    settings = Settings(data_dir=data_dir)
+    settings.refresh.max_closed_share = 0.5
+    monkeypatch.setattr(refresh, "get_settings", lambda: settings)
+    with db.session_scope() as s:
+        for row in (
+            *_seen("fresh", 0, "overture"),
+            *_seen("fresh2", 0, "overture"),
+            *_seen("gone", 60, "overture"),
+            *_seen("other_source", 60, "foursquare"),
+            *_seen("outside", 60, "overture", lon=20.0),
+        ):
+            s.add(row)
+            s.flush()
+    return settings
+
+
+def _statuses() -> dict[str, str]:
+    with db.session_scope() as s:
+        return {r.lead_id: r.status for r in s.scalars(select(Lead))}
+
+
+def test_refresh_closes_only_what_complete_runs_missed(refresh_db: Settings) -> None:
+    with db.session_scope() as s:
+        s.add(_monthly(30, BOX, ["overture"]))
+    assert refresh.run_refresh()["closed"] == 0  # one run is not enough
+    with db.session_scope() as s:
+        s.add(_monthly(1, BOX, ["overture"], status="failed"))
+    assert refresh.run_refresh()["closed"] == 0
+    with db.session_scope() as s:
+        s.add(_monthly(1, BOX, ["overture"]))
+    assert refresh.run_refresh() == {"covered": 3, "missing": 1, "closed": 1}
+    assert {k for k, v in _statuses().items() if v == "closed"} == {"gone"}
+
+
+def test_refresh_stops_when_too_many_are_missing(refresh_db: Settings) -> None:
+    refresh_db.refresh.max_closed_share = 0.1
+    with db.session_scope() as s:
+        s.add_all([_monthly(30, BOX, ["overture"]), _monthly(1, BOX, ["overture"])])
+    counts = refresh.run_refresh()
+    assert counts["closed"] == 0 and counts["skipped_too_many"] == 1
+    assert "closed" not in _statuses().values()
+
+
+def test_coverage_ignores_empty_sources() -> None:
+    settings = Settings(country_bbox={"MT": (1, 2, 3, 4)})
+    found = refresh.coverage_counts({"overture": 5, "foursquare": 0}, ["MT"], settings)
+    assert found == {"sources": ["overture"], "areas": {"MT": [1, 2, 3, 4]}}
+
+
+def test_collect_countries() -> None:
+    included = frozenset({"GB", "IE"})
+    assert CollectSettings().codes(included) == included
+    assert CollectSettings(countries=["gb", "XX"]).codes(included) == {"GB"}
+    assert CollectSettings(countries=["XX"]).codes(included) == frozenset()
