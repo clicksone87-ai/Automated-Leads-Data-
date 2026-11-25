@@ -141,3 +141,16 @@ table tbody tr.click td:nth-child(3),table tbody tr.click td:nth-child(5){white-
 tr.click td:nth-child(6) .clip{max-width:140px}
 input[dir],textarea[dir]{font-family:-apple-system,"SF Arabic","Geeza Pro",Tahoma,Arial,sans-serif}
 .notice.bad{background:var(--red-bg);color:#8c231d;border-left-color:var(--red)}
+.card.gap{margin-top:16px}
+.grid2>.card.wide{grid-column:1/-1}
+/* ten countries, then scroll; the header stays in view */
+.countries .tablewrap{max-height:calc(11 * 42px);overflow:auto;border:1px solid var(--line);border-radius:10px}
+.countries th,.countries td{height:42px;padding-top:0;padding-bottom:0}
+.countries thead th{position:sticky;top:0;z-index:1}
+.countries td:not(.num){white-space:nowrap}
+.countries table{border-collapse:separate;border-spacing:0}
+.countries .tablewrap::-webkit-scrollbar{width:10px;height:10px}
+.countries .tablewrap::-webkit-scrollbar-track{background:#eef1fb;border-radius:10px}
+.countries .tablewrap::-webkit-scrollbar-thumb{background:#aab4e6;border-radius:10px;border:2px solid #eef1fb}
+.countries .tablewrap::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+.countries .tablewrap{max-height:calc(11 * 42px + 18px)}

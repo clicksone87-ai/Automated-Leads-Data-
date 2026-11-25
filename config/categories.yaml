@@ -61,7 +61,7 @@ sources:
 # Fallback: first group with a keyword in the category text. Words of up to four letters
 # match whole words, longer ones the start of a word. Order matters: "nail bar" is beauty.
 keywords:
-  beauty_wellness: [beauty, salon, hair, barber, nail, spa, massage, cosmetic, tattoo, tanning, skin care]
+  beauty_wellness: [beauty, salon, hair, hairdress, barber, nail, spa, massage, cosmetic, tattoo, tanning, skin care]
   food_drink: [restaurant, cafe, café, coffee, bakery, bakeries, bar, pub, pizza, food, catering, dining, takeaway, kebab, brewery, gastropub, sandwich, ice cream, dessert, tea house]
   health_medical: [dentist, dental, clinic, doctor, medical, medicine, pharmacy, physio, physical therap, optician, optometr, chiropract, health, hospital, counsel, psycholog, naturopath, acupuncture, orthodont]
   trades_construction: [plumb, electrician, electrical, roofing, builder, construction, carpent, painter, painting, hvac, heating, locksmith, contractor, flooring, scaffold]

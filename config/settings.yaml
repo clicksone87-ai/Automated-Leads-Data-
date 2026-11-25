@@ -114,8 +114,8 @@ sources:
     enabled: true               # needs HF_TOKEN in .env (gated dataset, see docs/runbook.md)
     uri: null                   # null = newest Hugging Face release; or a local path/glob
   osm:
-    enabled: false
-    extracts_dir: data/osm      # Geofabrik .osm.pbf files
+    enabled: true
+    extracts_dir: null          # Geofabrik .osm.pbf files; null = data/osm
   companies_house:
     enabled: false
   sirene:

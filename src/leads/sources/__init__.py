@@ -33,7 +33,8 @@ def _foursquare(s: Settings) -> Source:
 def _osm(s: Settings) -> Source:
     from leads.sources.osm import OsmSource
 
-    return OsmSource(extracts_dir=s.source_option("osm", "extracts_dir", "data/osm"))
+    folder = s.source_option("osm", "extracts_dir", None)
+    return OsmSource(extracts_dir=folder or s.data_dir / "osm", bbox=s.country_bbox)
 
 
 def _companies_house(s: Settings) -> Source:

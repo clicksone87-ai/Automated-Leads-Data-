@@ -103,20 +103,22 @@ async function overviewPage() {
       stat(t.email, 'Have an email', pct(t.email, t.total) + ' of all', { email: 'yes' }, 'teal', 'mail'),
       stat(t.phone, 'Have a phone', pct(t.phone, t.total) + ' of all', { phone: 'yes' }, 'orange', 'phone'),
       stat(t.best, 'Best leads', 'Date, email, no website', { age: 'known', email: 'yes', website: 'not_listed' }, 'green', 'star')),
+    h('div', { class: 'card gap countries' }, h('h2', {}, 'Leads by country'), table([
+      { label: 'Country', get: (r) => h('button', { class: 'linkbtn', onclick: () => go({ country: r.key }) }, country(r.key)) },
+      { label: 'Leads', num: true, get: (r) => num(r.total) },
+      { label: 'Opening date known', num: true, get: (r) => num(r.dated) },
+      { label: 'Email', num: true, get: (r) => num(r.email) },
+      { label: 'Phone', num: true, get: (r) => num(r.phone) },
+      { label: 'Websites checked', num: true, get: (r) => num(r.checked) },
+      { label: 'Best leads', num: true, get: (r) => num(r.best) }], d.countries)),
     h('div', { class: 'grid2' },
       h('div', { class: 'card' }, h('h2', {}, 'Leads by opening year (date known)'), columns(d.years, (r) => go({ year: r.key }))),
-      h('div', { class: 'card' }, h('h2', {}, 'Leads by country'), table([
-        { label: 'Country', get: (r) => h('button', { class: 'linkbtn', onclick: () => go({ country: r.key }) }, country(r.key)) },
-        { label: 'Leads', num: true, get: (r) => num(r.total) },
-        { label: 'Dated', num: true, get: (r) => num(r.dated) },
-        { label: 'Email', num: true, get: (r) => num(r.email) },
-        { label: 'Best', num: true, get: (r) => num(r.best) }], d.countries),
-        h('h2', { class: 'bar' }, 'Outreach'), h('div', { class: 'outs' },
-          [['Drafted', d.outreach.drafted, 'blue'], ['Sent', d.outreach.sent, 'violet'], ['Replied', d.outreach.replied, 'green'], ['Bounced', d.outreach.bounced, 'orange'], ['Opted out', d.opted_out, 'gray']]
-            .map(([label, n, tone]) => h('div', { class: 't-' + tone }, h('b', {}, num(n)), h('span', {}, label))))),
       h('div', { class: 'card t-teal' }, h('h2', {}, 'Leads by type of business'), hbars(d.categories, (r) => opts.categories[r.key] || r.key || 'Unknown', (r) => go({ category: r.key }))),
       d.websites.length > 0 && h('div', { class: 'card' }, h('h2', {}, 'Website check results'), hbars(d.websites, (r) => WEB[r.key] || r.key, (r) => go({ website: r.key }), (r) => WEB_TONE[r.key])),
-      h('div', { class: 'card t-violet' }, h('h2', {}, 'Top cities'), hbars(d.cities, (r) => r.key, (r) => go({ city: r.key })))),
+      h('div', { class: 'card t-violet' }, h('h2', {}, 'Top cities'), hbars(d.cities, (r) => r.key, (r) => go({ city: r.key }))),
+      h('div', { class: 'card wide' }, h('h2', {}, 'Outreach'), h('div', { class: 'outs' },
+        [['Drafted', d.outreach.drafted, 'blue'], ['Sent', d.outreach.sent, 'violet'], ['Replied', d.outreach.replied, 'green'], ['Bounced', d.outreach.bounced, 'orange'], ['Opted out', d.opted_out, 'gray']]
+          .map(([label, n, tone]) => h('div', { class: 't-' + tone }, h('b', {}, num(n)), h('span', {}, label)))))),
   ];
 }
 
