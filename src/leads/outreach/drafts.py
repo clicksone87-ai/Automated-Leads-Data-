@@ -26,7 +26,7 @@ from leads.models import (
 from leads.outreach import ai
 from leads.outreach.gmail_drafts import build_mime, create_draft
 from leads.outreach.labels import ensure_labels, labels_for_lead
-from leads.outreach.templates import language_for_country
+from leads.outreach.phrases import LANGUAGES, display_name, lead_language, readable
 from leads.pipeline.sanctions import current_screen
 from leads.settings import Settings, get_settings, load_categories
 
@@ -88,8 +88,8 @@ def blockers(session: Session, lead: Lead, settings: Settings) -> list[str]:
             if lead.website_checked_at
             else "The website has not been checked yet."
         )
-    if language_for_country(lead.country_iso2) != "en":
-        found.append("Only English-speaking countries can be drafted for now.")
+    if lead_language(lead.name, lead.country_iso2) not in LANGUAGES:
+        found.append("Emails in this country's language are not ready yet.")
     if settings.sender.company in ("", "Your Company"):
         found.append("The company name is not filled in.")
     return found
@@ -119,13 +119,15 @@ def facts_for(lead: Lead) -> ai.LeadFacts:
         category = category.split("|")[0].split(">")[-1].strip()
         if re.match(r"\d", category):
             category = None
+    language = lead_language(lead.name, lead.country_iso2)
     return ai.LeadFacts(
-        name=lead.name,
+        name=display_name(lead.name, language),
         category=category or load_categories().display_name(lead.category_group),
-        city=lead.city,
+        city=readable(lead.city, language),
         website_status=lead.website_status or "",
         website_reason=lead.website_reason,
         domain=lead.domain,
+        language=language,
     )
 
 
@@ -177,7 +179,7 @@ def check_text(subject: str, body: str) -> tuple[str, str]:
         raise DraftError("The subject must be between 3 and 200 characters.")
     if not 40 <= len(body) <= 8000:
         raise DraftError("The email text is too short or too long.")
-    if ai.OPT_OUT not in body:
+    if not any(line in body for line in ai.OPT_OUTS):
         raise DraftError("Keep the last line that says how to opt out.")
     return subject, body
 

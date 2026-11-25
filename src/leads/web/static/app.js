@@ -249,8 +249,8 @@ function openEmail(id, name) {
     if (d.drafted) return [...top, h('p', {}, 'A draft has been saved for this lead. Review and send it in Gmail.'), h('a', { class: 'btn primary', href: GMAIL_DRAFTS, target: '_blank', rel: 'noopener noreferrer' }, 'Open Gmail drafts'), ' ', view];
     if (d.blockers.length) return [...top, h('div', { class: 'notice' }, 'This lead cannot be emailed:', h('ul', {}, d.blockers.map((b) => h('li', {}, b)))), view];
     const msg = h('p', { role: 'status' });
-    const subject = h('input', { type: 'text', id: 'mail-subject' });
-    const body = h('textarea', { id: 'mail-body', rows: 18 });
+    const subject = h('input', { type: 'text', id: 'mail-subject', dir: 'auto' });
+    const body = h('textarea', { id: 'mail-body', rows: 18, dir: 'auto' });
     const say = (text, bad) => { msg.textContent = text; msg.className = bad ? 'err' : 'muted'; };
     const fill = (e) => { subject.value = e.subject; body.value = e.body; form.hidden = false; writeBtn.textContent = 'Write again'; writeBtn.className = 'btn'; };
     const busy = (on) => { writeBtn.disabled = on || !d.ai; saveBtn.disabled = on || !d.gmail; };
@@ -274,6 +274,8 @@ function openEmail(id, name) {
       d.warnings.length > 0 && h('div', { class: 'notice' }, 'Before sending:', h('ul', {}, d.warnings.map((w) => h('li', {}, w)))),
       !d.ai && h('div', { class: 'notice' }, 'AI writing is not connected: add GROQ_API_KEY to .env and restart the dashboard.'),
       !d.gmail && h('div', { class: 'notice' }, 'Gmail is not connected yet, so drafts cannot be saved. See Setup.'),
+      d.language && h('p', {}, 'Language: ', chip(d.language, 'blue')),
+      d.language && !d.language.includes('English') && h('div', { class: 'notice' }, 'Ask someone who reads this language to check the text before sending.'),
       msg, form, h('p', {}, writeBtn, ' ', view)].filter(Boolean);
   });
 }
@@ -319,7 +321,7 @@ async function sourcesPage() {
 }
 const JOBS = {
   'gmail-sync': ['Gmail sync', 'Finds sent, replied, bounced and opted-out emails; prepares follow-up drafts'],
-  'daily-drafts': ['Daily check', 'Checks websites and opening dates'],
+  'daily-drafts': ['Daily check', 'Finds opening dates'],
   'monthly-collect': ['Monthly collect', 'Collects new businesses and closes missing ones'],
   'backup-check': ['Backup check', 'Makes sure last night’s backup exists'],
 };
@@ -334,7 +336,7 @@ async function setupPage() {
   const item = (name, ok, text) => ({ name, ok, text });
   return [...head('Setup', 'What must be connected before emails can be drafted.'),
     table([{ label: 'Item', get: (r) => r.name }, { label: 'Status', get: (r) => h('span', { class: r.ok ? 'tag ok' : 'tag warn' }, r.ok ? 'Ready' : 'Not ready') }, { label: 'Details', get: (r) => r.text }], [
-      item('Website checks', d.checked >= d.with_website && d.checked > 0, num(d.checked) + ' leads checked, ' + num(d.with_website) + ' list a website'),
+      item('Website checks', d.checked >= d.total, num(d.checked) + ' of ' + num(d.total) + ' leads checked, running all day. Last one: ' + (when(d.last_checked) || 'none')),
       item('Gmail', d.state.gmail, d.state.gmail ? 'Connected' : 'Sign in with the Google account that should hold the drafts'),
       item('AI writing', d.state.ai, d.state.ai ? 'Connected. Writes a different email for each business' : 'Add GROQ_API_KEY to .env'),
       item('Sender details', d.state.sender, d.warnings.length ? d.warnings.join(' ') : 'Complete'),

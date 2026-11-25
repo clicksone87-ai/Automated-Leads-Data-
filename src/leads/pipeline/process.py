@@ -73,8 +73,15 @@ class CountryInput:
 
 
 def _scan(directory: Path) -> pl.LazyFrame:
-    return pl.scan_parquet(str(directory / "*.parquet"), hive_partitioning=False).select(
-        list(RAW_SCHEMA)
+    # PostgreSQL text and jsonb cannot hold NUL characters, which some source records contain.
+    return (
+        pl.scan_parquet(str(directory / "*.parquet"), hive_partitioning=False)
+        .select(list(RAW_SCHEMA))
+        .with_columns(
+            pl.col(pl.String)
+            .str.replace_all("\x00", "", literal=True)
+            .str.replace_all("\\u0000", "", literal=True)
+        )
     )
 
 

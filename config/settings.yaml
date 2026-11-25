@@ -20,12 +20,11 @@ schedules:              # cron expressions, evaluated in `timezone`
 
 batch:
   drafts_per_day: 100
-  website_concurrency: 15       # parallel domains being checked; lower on a slow connection
+  website_concurrency: 25       # parallel domains being checked; lower on a slow connection
   db_chunk_size: 5000           # rows per insert/upsert batch
   raw_chunk_size: 100000        # rows per raw parquet part file
 
 website:
-  daily_limit: 3000             # leads checked per day, the most useful first
   timeout_seconds: 12
   # Page requests per domain (home + one contact page). robots.txt is fetched once
   # per domain in addition to this budget.
@@ -78,7 +77,8 @@ wayback:                        # first capture of a lead's own website, as age 
   seconds_per_request: 1.5      # archive.org asks for about 1 request per second
 
 collect:
-  countries: [GB, IE, MT]       # the monthly run; [] = every country in countries.yaml
+  # The monthly run; [] = every country in countries.yaml.
+  countries: [GB, IE, MT, AE, SA, QA, KW, BH, OM, JO, LB, IQ, SY, YE, PS]
 
 refresh:
   closed_after_missed_runs: 2
@@ -90,6 +90,19 @@ country_bbox:
   GB: [-2.35, 53.35, -1.40, 53.90]     # Leeds to Manchester; whole GB: [-8.8, 49.8, 2.0, 61.0]
   IE: [-10.8, 51.3, -5.9, 55.5]
   MT: [14.1, 35.7, 14.7, 36.2]
+  # Arab Middle East
+  AE: [51.4, 22.6, 56.5, 26.2]
+  SA: [34.4, 16.2, 55.7, 32.3]
+  QA: [50.7, 24.4, 51.7, 26.3]
+  KW: [46.5, 28.5, 48.5, 30.2]
+  BH: [50.2, 25.5, 50.9, 26.4]
+  OM: [51.9, 16.5, 60.0, 26.6]
+  JO: [34.8, 29.1, 39.4, 33.5]
+  LB: [35.0, 33.0, 36.7, 34.8]
+  IQ: [38.7, 29.0, 48.7, 37.5]
+  SY: [35.6, 32.2, 42.5, 37.4]
+  YE: [41.7, 11.9, 54.6, 19.1]
+  PS: [34.1, 31.1, 35.7, 32.7]
 
 sources:
   overture:

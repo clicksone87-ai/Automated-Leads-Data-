@@ -1,4 +1,7 @@
-"""Daily flow (07:00 local): check new websites, create Gmail drafts, update the Sheet."""
+"""Daily flow (07:00 local): opening dates and, if enabled, Gmail drafts.
+
+Websites are checked all day by the checker service.
+"""
 
 from __future__ import annotations
 
@@ -8,13 +11,6 @@ from prefect import flow, task
 
 from leads.db import finish_run, start_run
 from leads.settings import get_settings
-
-
-@task
-def check_new_websites() -> dict[str, int]:
-    from leads.enrich.check import check_pending
-
-    return check_pending(get_settings().website.daily_limit, recheck=True)
 
 
 @task
@@ -47,7 +43,6 @@ def daily_drafts(batch_size: int | None = None) -> dict[str, Any]:
     counts: dict[str, Any] = {}
     try:
         counts["wayback"] = date_leads()
-        counts["websites"] = check_new_websites()
         if get_settings().outreach.auto_drafts:
             counts["drafts"] = create_drafts(batch_size)
         counts["sheet"] = update_sheet()

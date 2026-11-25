@@ -382,3 +382,13 @@ def test_collect_countries() -> None:
     assert CollectSettings().codes(included) == included
     assert CollectSettings(countries=["gb", "XX"]).codes(included) == {"GB"}
     assert CollectSettings(countries=["XX"]).codes(included) == frozenset()
+
+
+def test_nul_characters_are_removed(tmp_path: Path) -> None:
+    record = RawRecord(
+        source="overture", source_record_id="x", name="Caf\x00e", raw={"a": "b\x00c"}
+    )
+    write_raw([record], source="overture", run_id="r", data_dir=tmp_path)
+    row = process._scan(tmp_path / "raw/source=overture/run=r").collect().to_dicts()[0]
+    assert row["name"] == "Cafe"
+    assert row["raw_json"] == '{"a": "bc"}'

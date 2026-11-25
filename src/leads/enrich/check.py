@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -162,6 +163,21 @@ def _save(
                 if extra in values:
                     counts[f"new_{extra}"] = counts.get(f"new_{extra}", 0) + 1
     return counts
+
+
+def watch(pause_seconds: float = 300.0) -> None:
+    """Check websites without end: new leads first, then those due again.
+
+    Waits when the internet is down or nothing is due, and survives a database restart.
+    """
+    while True:
+        try:
+            counts = check_pending(BATCH * 10, recheck=True)
+        except Exception as exc:
+            log.warning("website_watch_failed", error=repr(exc))
+            counts = {"checked": 0}
+        if counts["checked"] == 0 or "stopped_offline" in counts:
+            time.sleep(pause_seconds)
 
 
 def check_pending(limit: int | None = None, *, recheck: bool = False) -> dict[str, int]:

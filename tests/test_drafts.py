@@ -16,6 +16,8 @@ import leads.db as db
 from leads.models import Base, Lead, Outreach, Stage, Suppression, WebsiteStatus
 from leads.outreach import ai, drafts, gmail_sync
 from leads.outreach.ai import AiError, LeadFacts, write_email
+from leads.outreach.phrases import AR, LANGUAGES, display_name, lead_language, readable
+from leads.outreach.templates import template_path
 from leads.settings import SenderSettings, Settings
 
 URL = os.environ.get("TEST_DATABASE_URL")
@@ -359,3 +361,60 @@ def test_deleted_draft_is_not_called_sent(settings: Settings) -> None:
     gmail.saved.clear()
     counts = gmail_sync.sync(now=NOW, service=gmail)
     assert (counts["deleted"], counts["sent"]) == (1, 0)
+
+
+def test_language_follows_the_lead() -> None:
+    assert lead_language("Pindi Boys Restaurant", "AE") == "en"
+    assert lead_language("مطعم النور", "AE") == "ar"
+    assert lead_language("Al Noor | النور", "SA") == "en"
+    assert lead_language("Chez Paul", "FR") == "fr"
+    assert lead_language("مطعم النور", "GB") == "en"
+
+
+def test_bilingual_names_and_foreign_towns() -> None:
+    assert display_name("Golden Mark Textiles | العلامة الذهبية", "en") == "Golden Mark Textiles"
+    assert display_name("العلامة الذهبية - Golden", "ar") == "العلامة الذهبية"
+    assert display_name("Smith | Sons", "en") == "Smith | Sons"
+    assert readable("دبي", "en") is None
+    assert readable("دبي", "ar") == "دبي"
+    assert readable("샤르자", "ar") is None
+    assert readable("Ħamrun", "en") == "Ħamrun"
+
+
+AR_FACTS = LeadFacts("مطعم النور", "restaurant", "دبي", "none", None, None, "ar")
+AR_GOOD = {
+    "subject": "فكرة موقع إلكتروني لـ مطعم النور",
+    "paragraphs": [
+        "الموقع الجيد يساعد الزبائن في دبي على الاطلاع على قائمة الطعام وأوقات العمل وحجز طاولة "
+        "بسهولة من الهاتف في أي وقت من اليوم.",
+        "يسعدنا إعداد نموذج مجاني من صفحة واحدة دون أي التزام. هل ترغبون في الاطلاع عليه؟",
+    ],
+}
+
+
+def test_arabic_email() -> None:
+    email, seen = ask(AR_GOOD, facts=AR_FACTS)
+    assert "Arabic" in seen[0].content.decode()
+    assert email.body.rstrip().endswith(AR.opt_out)
+    assert drafts.check_text(email.subject, email.body)
+    assert gmail_sync.is_opt_out("لا شكرا")
+
+
+@pytest.mark.parametrize("bad", ["موقعكم قديم وبطيء.", "لدينا خصم ٢٠ لكم.", "ليس لديكم موقع."])
+def test_arabic_claims_are_refused(bad: str) -> None:
+    with pytest.raises(AiError, match="safe email"):
+        ask({**AR_GOOD, "paragraphs": [*AR_GOOD["paragraphs"], bad]}, facts=AR_FACTS)
+
+
+def test_english_text_for_an_arabic_lead_is_refused() -> None:
+    english = {**GOOD, "subject": "Website idea for مطعم النور"}
+    with pytest.raises(AiError, match="Arabic"):
+        ask(english, facts=AR_FACTS)
+
+
+def test_every_language_is_complete() -> None:
+    for code, phrases in LANGUAGES.items():
+        assert set(phrases.openings) == set(WebsiteStatus)
+        assert "{name}" in phrases.greeting
+        if code != "en":
+            assert template_path("email_followup", code).parent.name == code

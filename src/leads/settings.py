@@ -50,7 +50,6 @@ class BatchSettings(BaseModel):
 class WebsiteSettings(BaseModel):
     timeout_seconds: float = 12.0
     max_requests_per_domain: int = 2
-    daily_limit: int = 3000
     respect_robots_txt: bool = True
     user_agent: str = "lead-automation/0.1"
     recheck_after_days: int = 30

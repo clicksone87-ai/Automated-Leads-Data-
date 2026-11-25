@@ -17,34 +17,12 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, Field, ValidationError
 
-from leads.models import WebsiteStatus
+from leads.outreach.phrases import EN, LANGUAGES
 from leads.settings import SenderSettings, Settings
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 ATTEMPTS = 3
 MAX_WAIT = 65.0
-
-# The sentence about the website is fixed, so the one claim that matters is never reworded.
-# "None" is absence of evidence and is worded as such.
-OPENINGS: dict[str, tuple[str, ...]] = {
-    WebsiteStatus.NONE: (
-        "We came across {name} and couldn't find a website for the business.",
-        "We looked for a website for {name} and couldn't find one.",
-        "We came across {name}, but not a website for it.",
-    ),
-    WebsiteStatus.BROKEN: (
-        "We tried to visit {domain} and the site didn't load properly for us.",
-        "We came across {name}, but {domain} didn't open properly when we tried it.",
-    ),
-    WebsiteStatus.PARKED: (
-        "We came across {name}, but {domain} showed only a placeholder page when we opened it.",
-    ),
-    WebsiteStatus.REDIRECT_SOCIAL: (
-        "We came across {name} and found a social media page, but no separate website.",
-    ),
-    WebsiteStatus.WORKING: ("We came across {name} and your website at {domain}.",),
-}
-
 
 SYSTEM = """You write short, friendly, plain first emails from a small web design company to a \
 local business. Return JSON with "subject" and "paragraphs".
@@ -60,9 +38,11 @@ have looked at anything. Talk about what "a website" or "a good site" can do.
 - Start with what a good website does for this kind of business, concretely. Vary the wording \
 and structure from email to email; mention the town when it fits.
 - Offer a free one-page mock-up with no obligation and ask one simple question at the end.
-- 2 or 3 short paragraphs, 50 to 100 words in total. British English. No hype, no exclamation \
+- 2 or 3 short paragraphs, 50 to 100 words in total. No hype, no exclamation \
 marks, no emojis, no links, no phone numbers, no digits.
 - No greeting and no sign-off: they are added later.
+- Write the subject and every paragraph in {language}, natural and polite, as a native \
+business writer would. Keep the business name exactly as given.
 - The subject is 3 to 8 words, honest, not clickbait, and contains the business name. \
 Not salesy: avoid the word offer."""
 
@@ -84,6 +64,7 @@ class LeadFacts:
     website_status: str
     website_reason: str | None
     domain: str | None
+    language: str = "en"
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +99,14 @@ _JUDGES = re.compile(
 )
 
 
+_JUDGES_AR = re.compile(
+    r"موقعكم|موقعك|موقعكِ|موقعهم|تواجدكم|حضوركم|وجودكم|"
+    r"(?:لا تملكون|ليس لديكم|لا يوجد لديكم|تفتقرون|تفتقدون|ينقصكم)|زرنا|اطلعنا|اطّلعنا|"
+    r"تقييم|جائزة|جوائز|نضمن|مضمون|ضمان|خصم|بالمئة|بالمائة|[٠-٩]"
+)
+_ARABIC = re.compile(r"[\u0621-\u064A]")
+
+
 def problems(reply: _Reply, facts: LeadFacts) -> list[str]:
     """Reasons to refuse a reply."""
     found: list[str] = []
@@ -132,12 +121,18 @@ def problems(reply: _Reply, facts: LeadFacts) -> list[str]:
     if match := re.search(r"\b[\w-]+\.(?:com|co\.uk|org|net|ie|mt|uk)\b", text, re.IGNORECASE):
         found.append(f"contains an unknown address {match.group(0)!r}")
     words = len(" ".join(reply.paragraphs).split())
-    if not 30 <= words <= 140:
+    low, high = LANGUAGES[facts.language].words
+    if not low <= words <= high:
         found.append(f"is {words} words long")
     if _short(facts.name) not in reply.subject.lower():
         found.append("does not have the business name in the subject")
-    if match := _JUDGES.search(text):
-        found.append(f"makes a claim about their website: {match.group(0)!r}")
+    for pattern in (_JUDGES, _JUDGES_AR):
+        if match := pattern.search(text):
+            found.append(f"makes a claim about their website: {match.group(0)!r}")
+    if facts.language == "ar":
+        arabic, latin = len(_ARABIC.findall(text)), len(re.findall(r"[A-Za-z]", text))
+        if arabic < 5 * max(latin, 1):
+            found.append("is not written in Arabic")
     return found
 
 
@@ -146,34 +141,45 @@ def _short(name: str) -> str:
     return re.sub(r"[\s,]+(?:limited|ltd|llp|plc|inc|llc)\.?$", "", name.lower()).strip()
 
 
-def signature(sender: SenderSettings) -> str:
+def signature(sender: SenderSettings, language: str = "en") -> str:
+    phrases = LANGUAGES[language]
     name = sender.sender_name if sender.sender_name not in ("", "Your Name") else ""
     contact = " · ".join(
         x for x in (sender.company, sender.company_website, sender.company_phone) if x
     )
-    lines = ["Best regards,", name or f"The {sender.company} team", contact if name or
-             contact != sender.company else "", sender.company_address]  # fmt: skip
+    lines = [
+        phrases.regards,
+        name or phrases.team.replace("{company}", sender.company),
+        contact if name or contact != sender.company else "",
+        sender.company_address,
+    ]
     return "\n".join(line for line in lines if line)
 
 
-OPT_OUT = "If you'd rather not hear from us, reply \"no thanks\" and we won't contact you again."
+OPT_OUT = EN.opt_out
+OPT_OUTS = tuple(p.opt_out for p in LANGUAGES.values())
 
 
 def opening(facts: LeadFacts) -> str:
-    """Fixed sentence about the website; the wording differs between leads but not runs."""
-    choices = OPENINGS[facts.website_status]
+    """Fixed sentence about the website, so the one claim that matters is never reworded.
+
+    The wording differs between leads but not between runs.
+    """
+    choices = LANGUAGES[facts.language].openings[facts.website_status]
     pick = zlib.crc32(facts.name.encode()) % len(choices)
-    domain = facts.domain or "your address"
-    return choices[pick].replace("{name}", facts.name).replace("{domain}", domain)
+    return choices[pick].replace("{name}", facts.name).replace("{domain}", facts.domain or "")
 
 
 def assemble(paragraphs: list[str], facts: LeadFacts, sender: SenderSettings) -> str:
+    phrases = LANGUAGES[facts.language]
+    if facts.language == "ar":
+        paragraphs = [p.replace("?", "؟") for p in paragraphs]
     parts = [
-        f"Hi {facts.name} team,",
+        phrases.greeting.replace("{name}", facts.name),
         opening(facts),
         *(p.strip() for p in paragraphs),
-        signature(sender),
-        OPT_OUT,
+        signature(sender, facts.language),
+        phrases.opt_out,
     ]
     return "\n\n".join(parts) + "\n"
 
@@ -249,7 +255,10 @@ def write_email(facts: LeadFacts, settings: Settings, client: httpx.Client | Non
     own = client is None
     client = client or httpx.Client()
     messages = [
-        {"role": "system", "content": SYSTEM},
+        {
+            "role": "system",
+            "content": SYSTEM.replace("{language}", LANGUAGES[facts.language].name),
+        },
         {"role": "user", "content": f"<facts>{facts_text(facts)}</facts>"},
     ]
     issues: list[str] = []

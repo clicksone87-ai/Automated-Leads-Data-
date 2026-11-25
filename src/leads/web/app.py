@@ -14,6 +14,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -22,6 +23,7 @@ from leads.export import ATTRIBUTION_LINES, EXPORT_COLUMNS
 from leads.models import Lead, Suppression
 from leads.outreach import drafts
 from leads.outreach.ai import AiError
+from leads.outreach.phrases import LANGUAGES, lead_language
 from leads.settings import Settings, get_settings, load_categories
 from leads.web import queries
 from leads.web.queries import LeadFilter
@@ -172,9 +174,11 @@ def email_panel(lead_id: str, db: DB) -> dict[str, Any]:
         raise HTTPException(404, "Lead not found")
     settings = get_settings()
     state = setup_state(settings)
+    language = lead_language(lead_row.name, lead_row.country_iso2)
     saved = drafts.saved_email(db, lead_row)
     return {
         "to": lead_row.email,
+        "language": LANGUAGES[language].name if language in LANGUAGES else None,
         "email": {"subject": saved.subject, "body": saved.body} if saved else None,
         "blockers": drafts.blockers(db, lead_row, settings),
         "warnings": drafts.warnings(settings),
@@ -275,7 +279,8 @@ def setup(db: DB) -> dict[str, Any]:
         "followup_after_days": settings.outreach.followup_after_days,
         "include_unknown_age": settings.include_unknown_age,
         "checked": stats["totals"]["checked"],
-        "with_website": stats["totals"]["total"] - stats["totals"]["no_website"],
+        "total": stats["totals"]["total"],
+        "last_checked": db.scalar(select(func.max(Lead.website_checked_at))),
         "sources": [
             {"name": name, "enabled": settings.source_enabled(name)} for name in settings.sources
         ],

@@ -86,10 +86,14 @@ def check_websites(
     recheck: Annotated[
         bool, typer.Option(help="Also re-check websites older than 30 days")
     ] = False,
+    watch: Annotated[bool, typer.Option(help="Keep checking without end")] = False,
 ) -> None:
     """Check lead websites and extract public emails / WhatsApp numbers."""
     from leads.enrich.check import check_pending
+    from leads.enrich.check import watch as check_forever
 
+    if watch:
+        check_forever()
     _run(check_pending, limit, recheck=recheck)
 
 

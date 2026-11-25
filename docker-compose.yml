@@ -68,6 +68,21 @@ services:
       prefect-server:
         condition: service_healthy
 
+  # Checks lead websites all day long, the most useful leads first.
+  checker:
+    build: .
+    image: lead-automation-worker:latest
+    restart: unless-stopped
+    command: ["leads", "check-websites", "--watch"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leads}:${POSTGRES_PASSWORD:-leads}@db:5432/${POSTGRES_DB:-leads}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./config:/app/config:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Lead dashboard on http://localhost:3300. Needs only the database.
   app:
     build: .

@@ -121,7 +121,7 @@ Each item maps to `TODO(build step N)` markers in the code.
 - [x] **4. Website checker + email/WhatsApp extractor** (`enrich/website.py`, `enrich/check.py`); a status is set only on proof, anything unclear stays empty
 - [x] **5. Dedupe/match + CSV export + dashboard**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
 - [x] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)
-- [ ] **7. AI emails, Gmail drafts, labels, Gmail sync, follow-ups, opt-outs, sanctions check: done for English-speaking countries. Left: Google Sheet view, other languages** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
+- [ ] **7. AI emails, Gmail drafts, labels, Gmail sync, follow-ups, opt-outs, sanctions check: done for English-speaking countries. Left: other languages. The Google Sheet view is replaced by the dashboard** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
 - [ ] **8. Scale to all countries**, OSM history, more registries (`sources/osm.py`)
 - [ ] **9. Licensed directory feeds** (optional, `sources/directories.py`)
 

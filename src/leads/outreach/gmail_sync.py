@@ -22,6 +22,7 @@ from leads.outreach import ai
 from leads.outreach.drafts import check_account
 from leads.outreach.gmail_drafts import build_mime, encode_message
 from leads.outreach.labels import ensure_labels, labels_for_lead, other_stage_labels
+from leads.outreach.phrases import LANGUAGES, display_name, lead_language
 from leads.outreach.templates import build_context, render
 from leads.settings import Settings, get_settings, load_categories
 
@@ -258,8 +259,9 @@ def _follow_up(
     if row_id is None:
         return False
     session.commit()
+    language = lead_language(lead.name, lead.country_iso2)
     context = build_context(
-        business_name=lead.name,
+        business_name=display_name(lead.name, language),
         category=lead.category_group,
         city=lead.city,
         website_status=lead.website_status,
@@ -268,10 +270,12 @@ def _follow_up(
         delivery_days=settings.outreach.delivery_days,
         price=settings.outreach.price,
     )
-    text = render("email_followup", context).body.strip()
+    text = render("email_followup", context, language).body.strip()
     subject = state.subject if state.subject.lower().startswith("re:") else f"Re: {state.subject}"
     message = build_mime(
-        recipient, subject, f"{text}\n\n{ai.signature(settings.sender)}\n\n{ai.OPT_OUT}\n"
+        recipient,
+        subject,
+        f"{text}\n\n{ai.signature(settings.sender, language)}\n\n{LANGUAGES[language].opt_out}\n",
     )
     if state.sent_message_id:
         message["In-Reply-To"] = state.sent_message_id
