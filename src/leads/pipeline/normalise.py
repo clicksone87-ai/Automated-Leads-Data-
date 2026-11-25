@@ -74,8 +74,6 @@ SOCIAL_DOMAINS: dict[str, str] = {
     "youtu.be": "youtube",
     "pinterest.com": "pinterest",
 }
-# A site that only redirects here counts as "redirect_social" (see enrich.website).
-REDIRECT_SOCIAL_DOMAINS = frozenset({"facebook.com", "fb.com", "fb.me", "instagram.com"})
 
 # Website builders not in the Public Suffix List: keep the full host so that unrelated
 # businesses on the same builder are not merged by domain.
@@ -271,6 +269,13 @@ NACE_SOURCES = frozenset({"companies_house", "brreg", "sirene"})
 # --- category --------------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1024)
+def _keyword(word: str) -> re.Pattern[str]:
+    """Short words must match whole ("car" is not in "health care"), longer ones start a word."""
+    end = r"(?:s|es)?(?![a-z])" if len(word) <= 4 else ""
+    return re.compile(rf"(?<![a-z]){re.escape(word)}{end}")
+
+
 def map_category(source: str, category: str | None, config: CategoryConfig) -> str:
     """Map a source category to a shared group key (see config/categories.yaml)."""
     if not category:
@@ -281,8 +286,9 @@ def map_category(source: str, category: str | None, config: CategoryConfig) -> s
         return exact
     if source in NACE_SOURCES:
         return config.nace.get(lowered[:2], config.default_group)
+    label = lowered.replace("_", " ")
     for group, words in config.keywords.items():
-        if any(word in lowered for word in words):
+        if any(_keyword(word).search(label) for word in words):
             return group
     return config.default_group
 

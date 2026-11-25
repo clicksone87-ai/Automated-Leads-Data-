@@ -54,6 +54,7 @@ class WebsiteSettings(BaseModel):
     user_agent: str = "lead-automation/0.1"
     recheck_after_days: int = 30
     min_text_chars: int = 100
+    retry_wait_seconds: float = 5.0
 
 
 class OutreachSettings(BaseModel):
@@ -70,6 +71,10 @@ class SenderSettings(BaseModel):
     company_phone: str = ""
     company_address: str = ""
     mockup_link: str = ""
+
+
+class AiSettings(BaseModel):
+    model: str = "openai/gpt-oss-120b"
 
 
 class SanctionsSettings(BaseModel):
@@ -122,6 +127,8 @@ class Settings(BaseSettings):
     google_client_secret_file: Path | None = None
     google_token_file: Path | None = None
     gmail_user_id: str = "me"
+    gmail_account: str | None = None  # drafts are refused in any other account
+    groq_api_key: SecretStr | None = None
     google_sheet_id: str | None = None
     companies_house_api_key: SecretStr | None = None
     hf_token: SecretStr | None = None
@@ -139,6 +146,7 @@ class Settings(BaseSettings):
     website: WebsiteSettings = WebsiteSettings()
     outreach: OutreachSettings = OutreachSettings()
     sender: SenderSettings = SenderSettings()
+    ai: AiSettings = AiSettings()
     sanctions: SanctionsSettings = SanctionsSettings()
     match: MatchSettings = MatchSettings()
     registry: RegistrySettings = RegistrySettings()

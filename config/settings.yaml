@@ -20,7 +20,7 @@ schedules:              # cron expressions, evaluated in `timezone`
 
 batch:
   drafts_per_day: 100
-  website_concurrency: 50       # parallel domains being checked
+  website_concurrency: 15       # parallel domains being checked; lower on a slow connection
   db_chunk_size: 5000           # rows per insert/upsert batch
   raw_chunk_size: 100000        # rows per raw parquet part file
 
@@ -30,23 +30,27 @@ website:
   # per domain in addition to this budget.
   max_requests_per_domain: 2
   respect_robots_txt: true
-  user_agent: "lead-automation/0.1 (+https://example.com/lead-automation-bot)"  # TODO: your URL
+  user_agent: "lead-automation/0.1 (website check)"  # TODO: add your company website
   recheck_after_days: 30
+  retry_wait_seconds: 5         # before looking at a failing site a second time
   min_text_chars: 100           # visible text needed for "working" (200 + real content)
 
 outreach:
   followup_after_days: 6
   default_language: en
   delivery_days: 7
-  price: "£499"                 # TODO: your price / currency
+  price: ""                     # TODO: your price / currency
 
 sender:                         # TODO: fill in before creating drafts
   sender_name: "Your Name"
-  company: "Your Company"
-  company_website: "https://example.com"
-  company_phone: "+44 20 0000 0000"
-  company_address: "1 Example Street, London, UK"
-  mockup_link: "https://example.com/mockups"
+  company: "Clicksone"
+  company_website: ""
+  company_phone: ""
+  company_address: "Islamabad, Pakistan"
+  mockup_link: ""
+
+ai:                             # writes the emails; needs GROQ_API_KEY in .env
+  model: "openai/gpt-oss-120b"
 
 sanctions:
   sdn_url: "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV"

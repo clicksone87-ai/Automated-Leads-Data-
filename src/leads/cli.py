@@ -88,7 +88,7 @@ def check_websites(
     ] = False,
 ) -> None:
     """Check lead websites and extract public emails / WhatsApp numbers."""
-    from leads.enrich.website import check_pending
+    from leads.enrich.check import check_pending
 
     _run(check_pending, limit, recheck=recheck)
 
@@ -154,6 +154,17 @@ def export_csv(out: Annotated[Path | None, typer.Option(help="Output CSV path")]
     from leads.export.csv_export import export_leads
 
     _run(export_leads, out)
+
+
+@app.command()
+def dashboard(
+    port: Annotated[int, typer.Option(help="Port")] = 3300,
+    host: Annotated[str, typer.Option(help="Keep local: the dashboard has no login")] = "127.0.0.1",
+) -> None:
+    """Open the lead dashboard on http://localhost:3300."""
+    import uvicorn
+
+    uvicorn.run("leads.web.app:app", host=host, port=port, log_level="warning")
 
 
 @app.command("db-check")

@@ -56,14 +56,10 @@ PARKED_PHRASES: tuple[str, ...] = (
     "this domain may be for sale",
     "the domain is for sale",
     "buy this domain",
-    "is available for purchase",
     "domain is parked",
-    "this domain has been registered",
     "this web page is parked",
     "parked free, courtesy of",
-    "parked by",
     "domain parking",
-    "related searches",
     "make an offer on this domain",
     "inquire about this domain",
     "this domain name is available",
@@ -72,6 +68,15 @@ PARKED_PHRASES: tuple[str, ...] = (
     "dominio en venta",
     "dominio in vendita",
 )
+
+# Also seen on ordinary sites, so they only count on a nearly empty page.
+SHORT_PAGE_PHRASES: tuple[str, ...] = (
+    "is available for purchase",
+    "parked by",
+    "related searches",
+    "this domain has been registered",
+)
+SHORT_PAGE_CHARS = 800
 
 
 def is_parked_host(host: str | None) -> bool:
@@ -82,11 +87,18 @@ def is_parked_host(host: str | None) -> bool:
 
 
 def has_parked_nameservers(nameservers: Iterable[str]) -> bool:
-    return any(hint in ns.lower() for ns in nameservers for hint in PARKED_NAMESERVER_HINTS)
+    # Whole domain labels, so that "dan.com" does not match ns1.sudan.com.
+    return any(
+        f".{ns.lower().rstrip('.')}".endswith(f".{hint}")
+        or (hint == "domainparking" and hint in ns.lower())
+        for ns in nameservers
+        for hint in PARKED_NAMESERVER_HINTS
+    )
 
 
 def has_parked_phrases(text: str | None) -> bool:
     if not text:
         return False
     lowered = text.lower()
-    return any(phrase in lowered for phrase in PARKED_PHRASES)
+    phrases = PARKED_PHRASES + (SHORT_PAGE_PHRASES if len(lowered) < SHORT_PAGE_CHARS else ())
+    return any(phrase in lowered for phrase in phrases)

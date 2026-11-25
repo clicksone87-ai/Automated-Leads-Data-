@@ -35,19 +35,44 @@ class TestClassify:
         assert status == WebsiteStatus.WORKING
 
     @pytest.mark.parametrize(
-        "error", [FetchError.DNS, FetchError.TIMEOUT, FetchError.SSL, FetchError.CONNECT]
+        "error", [FetchError.DNS, FetchError.SSL, FetchError.TOO_MANY_REDIRECTS]
     )
     def test_fetch_errors_are_broken(self, error: FetchError) -> None:
         status, reason = classify(SITE, PageFetch(SITE, error=error))
         assert status == WebsiteStatus.BROKEN
         assert reason == str(error)
 
-    @pytest.mark.parametrize("code", [404, 410, 500, 503])
+    @pytest.mark.parametrize("code", [404, 410, 500, 502])
     def test_http_errors_are_broken(self, code: int, fixture_html) -> None:
         assert (
             classify(SITE, page(fixture_html("working_home.html"), status=code))[0]
             == WebsiteStatus.BROKEN
         )
+
+    @pytest.mark.parametrize(
+        "error",
+        [FetchError.DNS_UNSURE, FetchError.TIMEOUT, FetchError.CONNECT, FetchError.SSL_UNSURE,
+         FetchError.ROBOTS, FetchError.BLOCKED],
+    )  # fmt: skip
+    def test_unclear_errors_prove_nothing(self, error: FetchError) -> None:
+        assert classify(SITE, PageFetch(SITE, error=error)) == (None, str(error))
+
+    @pytest.mark.parametrize("code", [401, 403, 429, 503])
+    def test_turned_away_visits_prove_nothing(self, code: int) -> None:
+        assert classify(SITE, page("<p>Access denied</p>", status=code))[0] is None
+
+    def test_parking_words_on_a_full_page_are_ignored(self) -> None:
+        html = "<body>" + "Our spring menu is served all day. " * 40 + "Related searches</body>"
+        assert classify(SITE, page(html))[0] == WebsiteStatus.WORKING
+
+    def test_nameserver_hint_needs_the_whole_domain(self) -> None:
+        html = "<body>" + "Welcome to our garage. " * 20 + "</body>"
+        status, _ = classify(SITE, page(html), nameservers=("ns1.sudan.com",))
+        assert status == WebsiteStatus.WORKING
+
+    def test_tiktok_profile_is_social(self) -> None:
+        url = "https://www.tiktok.com/@acme"
+        assert classify(url, PageFetch(url))[0] == WebsiteStatus.REDIRECT_SOCIAL
 
     def test_empty_page_is_broken(self, fixture_html) -> None:
         status, reason = classify(SITE, page(fixture_html("empty.html")))
@@ -82,13 +107,10 @@ class TestClassify:
             == WebsiteStatus.REDIRECT_SOCIAL
         )
 
-    def test_linkedin_only_is_not_redirect_social(self) -> None:
+    def test_linkedin_only_is_social(self) -> None:
         # Brief: redirect_social is only Facebook/Instagram.
         fetched = page("<html></html>", final_url="https://www.linkedin.com/company/rosies")
-        assert classify(SITE, fetched)[0] != WebsiteStatus.REDIRECT_SOCIAL
-
-    def test_robots_disallowed_counts_as_working(self) -> None:
-        assert classify(SITE, PageFetch(SITE, error=FetchError.ROBOTS))[0] == WebsiteStatus.WORKING
+        assert classify(SITE, fetched)[0] == WebsiteStatus.REDIRECT_SOCIAL
 
 
 class TestExtract:

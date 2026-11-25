@@ -9,9 +9,12 @@ import base64
 from email.message import EmailMessage
 from typing import Any
 
+import structlog
 from sqlalchemy import Select, and_, case, exists, false, select
 
 from leads.models import Lead, LeadStatus, Outreach, Suppression, WebsiteStatus
+
+log = structlog.get_logger(__name__)
 
 # Lower = drafted first. Brief: none > broken > parked > working. A social-only "website"
 # is treated like having no website.
@@ -87,19 +90,46 @@ def create_draft(
 
 
 def create_daily_drafts(batch_size: int | None = None, *, dry_run: bool = False) -> dict[str, int]:
-    """Create today's batch of first-email drafts.
+    """Write and save drafts for the best leads, up to the daily limit.
 
-    TODO(build step 7):
-      1. ``settings.batch.drafts_per_day`` unless ``batch_size`` is given.
-      2. Run ``candidates_query`` in a session.
-      3. For each lead: language = ``templates.language_for_country``; render
-         ``email_first`` with ``templates.build_context``; ``build_mime``.
-      4. ``labels.labels_for_lead(stage=Stage.FIRST, category_group=<display name>)``
-         -> ``labels.ensure_labels`` once per batch.
-      5. Unless ``dry_run``: ``create_draft``; insert ``Outreach(stage='first',
-         gmail_draft_id, gmail_thread_id, drafted_at=now)``. Commit per lead so a crash
-         never produces duplicate drafts.
-      6. ``dry_run``: print subject/recipient instead, no Gmail calls, no DB writes.
-      7. Return {"drafted": n, "skipped": n}.
+    ``dry_run`` writes the emails and prints them, without touching Gmail.
     """
-    raise NotImplementedError("gmail_drafts.create_daily_drafts (build step 7)")
+    from leads.db import session_scope
+    from leads.outreach import drafts
+    from leads.outreach.ai import AiError
+    from leads.settings import get_settings
+
+    settings = get_settings()
+    counts = {"drafted": 0, "skipped": 0}
+    with session_scope() as session:
+        room = settings.batch.drafts_per_day - drafts.drafted_today(session)
+        wanted = min(room, batch_size if batch_size is not None else room)
+        if wanted <= 0:
+            return counts
+        # Some candidates are skipped, e.g. two leads that share an address.
+        query = candidates_query(wanted * 3, include_unknown_age=settings.include_unknown_age)
+        lead_ids = [lead.lead_id for lead in session.scalars(query)]
+    for lead_id in lead_ids:
+        if counts["drafted"] >= wanted:
+            break
+        try:
+            email = drafts.generate(lead_id, settings=settings)
+            if dry_run:
+                print(f"--- {lead_id}\nSubject: {email.subject}\n\n{email.body}")
+            else:
+                drafts.save_to_gmail(lead_id, email.subject, email.body, settings=settings)
+        except AiError as exc:
+            # A refused text is one lead's problem; a missing key or used-up limit is everyone's.
+            counts["skipped"] += 1
+            log.warning("email_not_written", lead_id=lead_id, reason=str(exc))
+            if "safe email" not in str(exc):
+                break
+            continue
+        except drafts.DraftError as exc:
+            counts["skipped"] += 1
+            log.warning("draft_skipped", lead_id=lead_id, reason=str(exc))
+            if "Gmail" in str(exc) or "limit" in str(exc):
+                break
+            continue
+        counts["drafted"] += 1
+    return counts

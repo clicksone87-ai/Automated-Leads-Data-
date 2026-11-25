@@ -3,16 +3,19 @@
 Classifies each lead's website as:
 
 * ``working``         HTTP 200 with real content
-* ``broken``          DNS failure, 4xx/5xx, SSL error, timeout, connection error, empty page
+* ``broken``          name does not exist, 404/410/5xx, bad certificate, empty page (seen twice)
 * ``parked``          parking/marketplace host or nameserver, or phrases like "domain for sale"
-* ``redirect_social`` the site is (or redirects to) only a Facebook/Instagram page
+* ``redirect_social`` the site is (or redirects to) only a social media page
 * ``none``            no website at all
 
-and extracts public emails, publicly shown WhatsApp numbers (with the URL of the page
+or leaves the status empty when the check proves nothing (slow network, a server that blocks
+automated visits). A wrong "your website is down" is worse than no answer.
+
+It also extracts public emails, publicly shown WhatsApp numbers (with the URL of the page
 showing them), social profile links and the earliest copyright year.
 
-Politeness rules: only the home page and one contact page are fetched (at most
-``max_requests_per_domain`` page requests), robots.txt is respected, 12 s timeout,
+Politeness rules: only the home page and one contact page are fetched (redirects and
+one retry aside, at most ``max_requests_per_domain`` pages), robots.txt is respected, 12 s timeout,
 the User-Agent names the tool. WhatsApp numbers are only read from the page; no
 WhatsApp API is ever called.
 """
@@ -21,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import ssl
 import urllib.robotparser
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -32,12 +34,13 @@ import dns.asyncresolver
 import dns.exception
 import dns.resolver
 import httpx
+import structlog
 from selectolax.lexbor import LexborHTMLParser
 
 from leads.enrich import parked
+from leads.enrich.safe_http import PublicOnlyTransport, read_limited
 from leads.models import WebsiteStatus
 from leads.pipeline.normalise import (
-    REDIRECT_SOCIAL_DOMAINS,
     SOCIAL_DOMAINS,
     host_of,
     normalise_phone,
@@ -46,11 +49,16 @@ from leads.pipeline.normalise import (
 )
 from leads.settings import WebsiteSettings
 
+log = structlog.get_logger(__name__)
+
 
 class FetchError(StrEnum):
-    DNS = "dns"
+    DNS = "domain name does not exist"
+    DNS_UNSURE = "dns lookup failed"
     TIMEOUT = "timeout"
-    SSL = "ssl"
+    SSL = "invalid security certificate"
+    SSL_UNSURE = "security certificate could not be verified"
+    BLOCKED = "blocked address"
     CONNECT = "connect"
     ROBOTS = "robots_disallowed"
     TOO_MANY_REDIRECTS = "too_many_redirects"
@@ -63,6 +71,7 @@ class PageFetch:
     status_code: int | None = None
     html: str | None = None
     error: FetchError | None = None
+    is_html: bool = True
 
 
 @dataclass(slots=True)
@@ -82,10 +91,11 @@ class Contacts:
 
 @dataclass(slots=True)
 class WebsiteCheck:
-    status: WebsiteStatus
+    status: WebsiteStatus | None  # None = could not tell
     reason: str
     final_url: str | None = None
     contacts: Contacts = field(default_factory=Contacts)
+    text: str = ""  # visible text, to recognise whose site it is
     checked_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -118,6 +128,12 @@ def _hrefs(html: str) -> list[tuple[str, str]]:
     return out
 
 
+# Only these show that ordinary visitors cannot use the site. 401/403/429/503 are usually
+# a server turning automated visits away.
+_BROKEN_CODES = frozenset({404, 410, 500, 502, 504, 521, 522, 523, 525, 526})
+_PROOF_OF_BROKEN = frozenset({FetchError.DNS, FetchError.SSL, FetchError.TOO_MANY_REDIRECTS})
+_RETRY = frozenset({FetchError.TIMEOUT, FetchError.CONNECT, FetchError.SSL, FetchError.SSL_UNSURE})
+
 # --- classification ---------------------------------------------------------------------
 
 
@@ -127,29 +143,35 @@ def classify(
     *,
     nameservers: tuple[str, ...] = (),
     min_text_chars: int = 100,
-) -> tuple[WebsiteStatus, str]:
-    """Classify a website from its home-page fetch. Pure function (no network)."""
+) -> tuple[WebsiteStatus | None, str]:
+    """Classify a website from its home-page fetch. Pure function (no network).
+
+    The status is None when the fetch does not show whether visitors can use the site.
+    """
     if not website or not website.strip():
         return WebsiteStatus.NONE, "no website"
     site_domain = registered_domain(host_of(website))
-    if site_domain in REDIRECT_SOCIAL_DOMAINS:
+    if site_domain in SOCIAL_DOMAINS:
         return WebsiteStatus.REDIRECT_SOCIAL, "website is a social profile"
     if parked.has_parked_nameservers(nameservers):
         return WebsiteStatus.PARKED, "parking nameservers"
     if home is None:
-        return WebsiteStatus.BROKEN, "not fetched"
-    if home.error == FetchError.ROBOTS:
-        return WebsiteStatus.WORKING, "robots.txt disallows fetching; server responds"
+        return None, "not fetched"
     if home.error is not None:
-        return WebsiteStatus.BROKEN, str(home.error)
+        return (WebsiteStatus.BROKEN if home.error in _PROOF_OF_BROKEN else None), str(home.error)
 
     final_host = host_of(home.final_url or home.requested_url)
-    if registered_domain(final_host) in REDIRECT_SOCIAL_DOMAINS:
+    if registered_domain(final_host) in SOCIAL_DOMAINS:
         return WebsiteStatus.REDIRECT_SOCIAL, f"redirects to {final_host}"
     if parked.is_parked_host(final_host):
         return WebsiteStatus.PARKED, f"parking host {final_host}"
-    if home.status_code is None or home.status_code >= 400:
-        return WebsiteStatus.BROKEN, f"http {home.status_code}"
+    if home.status_code is None:
+        return None, "no response"
+    if home.status_code >= 400:
+        broken = home.status_code in _BROKEN_CODES
+        return (WebsiteStatus.BROKEN if broken else None), f"http {home.status_code}"
+    if not home.is_html:
+        return WebsiteStatus.WORKING, "200, a file"
 
     text = visible_text(home.html)
     title_node = parse_html(home.html).css_first("title") if home.html else None
@@ -159,8 +181,11 @@ def classify(
     if len(text) >= min_text_chars:
         return WebsiteStatus.WORKING, "200 with content"
     # JS-rendered sites (Wix/Squarespace/React) have little server-side text but load scripts.
-    if title and home.html and "<script" in home.html.lower():
+    lowered = (home.html or "").lower()
+    if title and "<script" in lowered:
         return WebsiteStatus.WORKING, "200, JS-rendered"
+    if any(tag in lowered for tag in ("<script", "<iframe", "<frame", "<img", "http-equiv")):
+        return None, "200, content not readable"
     return WebsiteStatus.BROKEN, "200 but empty page"
 
 
@@ -321,19 +346,20 @@ def find_contact_url(html: str, base_url: str) -> str | None:
 # --- network ------------------------------------------------------------------------------
 
 
-async def resolve_dns(domain: str, timeout: float = 5.0) -> tuple[bool, tuple[str, ...]]:
-    """(resolves?, nameservers) for a domain."""
+async def resolve_dns(domain: str, timeout: float = 8.0) -> tuple[bool | None, tuple[str, ...]]:
+    """(resolves?, nameservers) for a domain. None = the lookup itself failed."""
     resolver = dns.asyncresolver.Resolver()
     resolver.lifetime = timeout
-    ok = False
+    ok: bool | None = None
     for rtype in ("A", "AAAA"):
         try:
             await resolver.resolve(domain, rtype)
             ok = True
             break
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
+        except dns.resolver.NXDOMAIN:
+            ok = False
             break
-        except (dns.resolver.NoAnswer, dns.exception.Timeout):
+        except dns.exception.DNSException:
             continue
     nameservers: tuple[str, ...] = ()
     reg = registered_domain(domain)
@@ -346,35 +372,74 @@ async def resolve_dns(domain: str, timeout: float = 5.0) -> tuple[bool, tuple[st
     return ok, nameservers
 
 
+def _ssl_error(message: str) -> FetchError:
+    """A missing intermediate certificate is repaired by browsers, so it proves nothing."""
+    proof = ("certificate has expired", "hostname mismatch", "self-signed", "self signed")
+    return FetchError.SSL if any(p in message.lower() for p in proof) else FetchError.SSL_UNSURE
+
+
+MAX_REDIRECTS = 8
+TOTAL_SECONDS_FACTOR = 3  # whole page, against servers that trickle bytes
+
+
+async def _request(client: httpx.AsyncClient, url: str, result: PageFetch) -> None:
+    for _ in range(MAX_REDIRECTS + 1):
+        result.final_url = url
+        # Social networks do not allow automated visits; landing there is answer enough.
+        if registered_domain(host_of(url)) in SOCIAL_DOMAINS:
+            result.status_code = 200
+            return
+        async with client.stream("GET", url, follow_redirects=False) as response:
+            result.status_code = response.status_code
+            target = response.headers.get("location")
+            if response.is_redirect and target:
+                url = urljoin(url, target)
+                if not url.lower().startswith(("http://", "https://")):
+                    result.error = FetchError.CONNECT
+                    return
+                continue
+            content_type = response.headers.get("content-type", "")
+            result.is_html = "html" in content_type or not content_type
+            if result.is_html:
+                result.html = await read_limited(response)
+            return
+    result.error = FetchError.TOO_MANY_REDIRECTS
+
+
 async def fetch_page(client: httpx.AsyncClient, url: str) -> PageFetch:
     result = PageFetch(requested_url=url)
+    total = (client.timeout.read or 12.0) * TOTAL_SECONDS_FACTOR
     try:
-        response = await client.get(url)
-    except httpx.TimeoutException:
+        async with asyncio.timeout(total):
+            await _request(client, url, result)
+    except (httpx.TimeoutException, TimeoutError):
         result.error = FetchError.TIMEOUT
-    except httpx.TooManyRedirects:
-        result.error = FetchError.TOO_MANY_REDIRECTS
     except httpx.ConnectError as exc:
-        is_ssl = isinstance(exc.__cause__, ssl.SSLError) or "ssl" in str(exc).lower()
-        result.error = FetchError.SSL if is_ssl else FetchError.CONNECT
-    except httpx.HTTPError:
+        message = str(exc)
+        if "blocked" in message:
+            result.error = FetchError.BLOCKED
+        elif "certificate" in message.lower():
+            result.error = _ssl_error(message)
+        else:
+            result.error = FetchError.CONNECT
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError):
         result.error = FetchError.CONNECT
-    else:
-        result.final_url = str(response.url)
-        result.status_code = response.status_code
-        content_type = response.headers.get("content-type", "")
-        if "html" in content_type or not content_type:
-            result.html = response.text[:2_000_000]
     return result
 
 
 async def _robots(client: httpx.AsyncClient, base_url: str) -> urllib.robotparser.RobotFileParser:
     parser = urllib.robotparser.RobotFileParser()
+    page = PageFetch(urljoin(base_url, "/robots.txt"))
+    lines: list[str] = []
     try:
-        response = await client.get(urljoin(base_url, "/robots.txt"))
-        lines = response.text.splitlines() if response.status_code == 200 else []
-    except httpx.HTTPError:
-        lines = []
+        async with asyncio.timeout((client.timeout.read or 12.0) * 2):
+            async with client.stream("GET", page.requested_url) as response:
+                if response.status_code == 200 and "html" not in response.headers.get(
+                    "content-type", ""
+                ):
+                    lines = (await read_limited(response, 500_000)).splitlines()
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError, TimeoutError):
+        pass
     parser.parse(lines)  # empty -> everything allowed
     return parser
 
@@ -384,8 +449,15 @@ def make_client(cfg: WebsiteSettings) -> httpx.AsyncClient:
         timeout=cfg.timeout_seconds,
         follow_redirects=True,
         max_redirects=5,
+        transport=PublicOnlyTransport(),
+        trust_env=False,
         headers={"User-Agent": cfg.user_agent, "Accept": "text/html,*/*;q=0.5"},
     )
+
+
+def _root(url: str) -> str:
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}/"
 
 
 async def check_website(
@@ -403,12 +475,20 @@ async def check_website(
     if status == WebsiteStatus.REDIRECT_SOCIAL:
         return WebsiteCheck(status, reason, final_url=url)
 
-    host = host_of(url) or ""
+    host = urlsplit(url).hostname or ""
     resolves, nameservers = await resolve_dns(host)
-    if not resolves:
-        return WebsiteCheck(WebsiteStatus.BROKEN, "dns")
+    if resolves is False:
+        # Some sites exist only with, or only without, "www.".
+        other = host[4:] if host.startswith("www.") else f"www.{host}"
+        other_resolves, nameservers = await resolve_dns(other)
+        if other_resolves is False:
+            return WebsiteCheck(WebsiteStatus.BROKEN, str(FetchError.DNS))
+        if other_resolves:
+            url = url.replace(f"//{host}", f"//{other}", 1)
+        resolves = other_resolves
+    if resolves is None:
+        return WebsiteCheck(None, str(FetchError.DNS_UNSURE))
 
-    budget = cfg.max_requests_per_domain
     robots = await _robots(client, url) if cfg.respect_robots_txt else None
 
     def allowed(target: str) -> bool:
@@ -416,26 +496,41 @@ async def check_website(
 
     if not allowed(url):
         home = PageFetch(url, error=FetchError.ROBOTS)
-    else:
-        home = await fetch_page(client, url)
-        budget -= 1
-        if (
-            home.error in (FetchError.SSL, FetchError.CONNECT)
-            and url.startswith("https://")
-            and budget > 0
-        ):
-            home = await fetch_page(client, "http://" + url[len("https://") :])
-            budget -= 1
+        status, reason = classify(url, home, nameservers=nameservers)
+        return WebsiteCheck(status, reason)
 
-    status, reason = classify(url, home, nameservers=nameservers, min_text_chars=cfg.min_text_chars)
+    async def look(target: str) -> tuple[PageFetch, WebsiteStatus | None, str]:
+        page = await fetch_page(client, target)
+        return page, *classify(
+            target, page, nameservers=nameservers, min_text_chars=cfg.min_text_chars
+        )
+
+    home, status, reason = await look(url)
+    if status == WebsiteStatus.BROKEN or home.error in _RETRY:
+        # Nothing is called broken on one visit. An old deep link may be gone while the
+        # site itself is fine, so a missing page is asked for again at the front page.
+        retry = _root(url) if home.status_code in (404, 410) else url
+        if home.error in _RETRY and url.startswith("https://"):
+            plain = "http://" + url.removeprefix("https://")
+            again = await look(plain)
+            if again[1] == WebsiteStatus.WORKING:
+                home, status, reason = again
+        if status != WebsiteStatus.WORKING and allowed(retry):
+            await asyncio.sleep(cfg.retry_wait_seconds)
+            first = status
+            home, status, reason = await look(retry)
+            if first is None and status == WebsiteStatus.BROKEN:
+                status = None  # only seen once
+
     check = WebsiteCheck(status, reason, final_url=home.final_url)
     if status != WebsiteStatus.WORKING or not home.html:
         return check
 
     page_url = home.final_url or url
     contacts = [extract_contacts(home.html, page_url, country_iso2)]
+    check.text = visible_text(home.html)
     contact_url = find_contact_url(home.html, page_url)
-    if contact_url and budget > 0 and allowed(contact_url):
+    if contact_url and cfg.max_requests_per_domain > 1 and allowed(contact_url):
         contact_page = await fetch_page(client, contact_url)
         if contact_page.html and (contact_page.status_code or 500) < 400:
             contacts.append(
@@ -443,6 +538,7 @@ async def check_website(
                     contact_page.html, contact_page.final_url or contact_url, country_iso2
                 )
             )
+            check.text += " " + visible_text(contact_page.html)
     check.contacts = merge_contacts(*contacts)
     return check
 
@@ -450,32 +546,35 @@ async def check_website(
 async def check_many(
     items: list[tuple[str, str | None, str | None]], cfg: WebsiteSettings, concurrency: int = 50
 ) -> dict[str, WebsiteCheck]:
-    """Check many websites concurrently. ``items`` = (key, website, country_iso2)."""
+    """Check many websites concurrently. ``items`` = (key, website, country_iso2).
+
+    Sites on one host are visited one after another.
+    """
     semaphore = asyncio.Semaphore(concurrency)
+    hosts: dict[str, asyncio.Lock] = {}
     results: dict[str, WebsiteCheck] = {}
     async with make_client(cfg) as client:
 
         async def one(key: str, website: str | None, country: str | None) -> None:
-            async with semaphore:
-                results[key] = await check_website(
-                    website, country_iso2=country, client=client, cfg=cfg
-                )
+            lock = hosts.setdefault(host_of(website) or key, asyncio.Lock())
+            async with lock, semaphore:
+                try:
+                    results[key] = await check_website(
+                        website, country_iso2=country, client=client, cfg=cfg
+                    )
+                except Exception as exc:  # one odd site must not lose the batch
+                    log.warning("website_check_failed", website=website, error=repr(exc))
+                    results[key] = WebsiteCheck(None, "check failed")
 
         await asyncio.gather(*(one(*item) for item in items))
     return results
 
 
-def check_pending(limit: int | None = None, *, recheck: bool = False) -> dict[str, int]:
-    """Check websites of leads never checked (or checked > recheck_after_days ago).
+_CONTROL_URLS = ("https://www.wikipedia.org/", "https://www.gov.uk/", "https://www.iana.org/")
 
-    TODO(build step 4):
-      1. Select leads where website_checked_at IS NULL (or stale when ``recheck``),
-         status active, not sanctions_hit; ``limit`` rows.
-      2. Group by domain so each domain is checked once (several leads may share one).
-      3. ``asyncio.run(check_many(...))`` with settings.batch.website_concurrency.
-      4. Update: website_status, website_checked_at, email (only if empty), whatsapp_number
-         + whatsapp_evidence (first hit), socials (merge), and pass copyright_year to the
-         age resolver as extra evidence if desired.
-      5. Return counts per status.
-    """
-    raise NotImplementedError("website.check_pending (build step 4)")
+
+async def network_ok(cfg: WebsiteSettings) -> bool:
+    """Whether this machine can reach well-known sites; otherwise results mean nothing."""
+    async with make_client(cfg) as client:
+        pages = await asyncio.gather(*(fetch_page(client, url) for url in _CONTROL_URLS))
+    return sum(p.status_code is not None and p.error is None for p in pages) >= 2

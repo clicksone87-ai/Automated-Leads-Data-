@@ -94,7 +94,7 @@ debugging.
 | Permission denied writing `data/` (Linux) | `sudo chown -R 1000:1000 data` (the worker runs as uid 1000) |
 | CLI prints `Not implemented yet` | that step is still a stub; see the build order in README |
 | Gmail `insufficientPermissions` | re-authorise (scopes changed) |
-| Many sites `broken` with `timeout` | lower `batch.website_concurrency`; check your network/DNS |
+| Many checks end in `timeout` or `dns lookup failed` | lower `batch.website_concurrency`; check your network/DNS |
 | Prefect UI shows no deployments | worker not running or `PREFECT_API_URL` wrong; `docker compose logs worker` |
 
 ## 7. Compliance notes

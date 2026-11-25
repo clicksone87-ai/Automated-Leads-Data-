@@ -44,7 +44,7 @@ def refresh(run_id: str) -> dict[str, int]:
 
 @task
 def check_websites() -> dict[str, int]:
-    from leads.enrich.website import check_pending
+    from leads.enrich.check import check_pending
 
     return check_pending(recheck=True)
 

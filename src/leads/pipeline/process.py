@@ -19,7 +19,7 @@ from typing import Any
 import polars as pl
 from sqlalchemy import and_, case, delete, exists, func, null, select, update
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from leads.db import finish_run, session_scope
 from leads.models import Lead, LeadSource, LeadStatus, Outreach, Run, point_ewkt
@@ -380,7 +380,7 @@ def _upsert_leads(session: Session, leads: Sequence[dict[str, Any]], chunk: int)
     changes["socials"] = new["socials"].op("||")(Lead.socials)
     # A different website has not been checked yet.
     moved = and_(new["website"].is_not(None), new["website"].is_distinct_from(Lead.website))
-    for column in (Lead.website_status, Lead.website_checked_at):
+    for column in (Lead.website_status, Lead.website_reason, Lead.website_checked_at):
         changes[column.key] = case((moved, null()), else_=column)
     changes["updated_at"] = func.now()
     upsert = stmt.on_conflict_do_update(index_elements=["lead_id"], set_=changes)
@@ -413,7 +413,20 @@ def _merge_away(session: Session, pairs: Sequence[tuple[str, str]]) -> None:
         session.execute(
             update(LeadSource).where(LeadSource.lead_id == loser).values(lead_id=survivor)
         )
-        session.execute(update(Outreach).where(Outreach.lead_id == loser).values(lead_id=survivor))
+        taken = aliased(Outreach)
+        session.execute(
+            update(Outreach)
+            .where(
+                Outreach.lead_id == loser,
+                ~exists().where(
+                    taken.lead_id == survivor,
+                    taken.channel == Outreach.channel,
+                    taken.is_followup == Outreach.is_followup,
+                ),
+            )
+            .values(lead_id=survivor)
+            .execution_options(synchronize_session=False)
+        )
         session.execute(delete(Lead).where(Lead.lead_id == loser))
 
 

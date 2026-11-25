@@ -67,6 +67,24 @@ services:
       prefect-server:
         condition: service_healthy
 
+  # Lead dashboard on http://localhost:3300. Needs only the database.
+  app:
+    build: .
+    image: lead-automation-worker:latest
+    restart: unless-stopped
+    command: ["leads", "dashboard", "--host", "0.0.0.0"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leads}:${POSTGRES_PASSWORD:-leads}@db:5432/${POSTGRES_DB:-leads}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./secrets:/app/secrets:ro
+      - ./config:/app/config:ro
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-3300}:3300"
+    depends_on:
+      db:
+        condition: service_healthy
+
   # One-off Google OAuth sign-in: `docker compose run --rm auth`
   # Same image as the worker, but secrets/ is writable so token.json can be saved.
   auth:

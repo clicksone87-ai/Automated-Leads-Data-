@@ -25,11 +25,14 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from leads.settings import Settings, get_settings
 
 # gmail.modify: create drafts, read threads, apply labels. The code never sends mail.
-SCOPES = [
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/spreadsheets",
-]
+GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
+SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 MANUAL_REDIRECT_URI = "http://localhost:8765/"
+
+
+def scopes(settings: Settings) -> list[str]:
+    """Sheets access is asked for only when a Sheet is configured."""
+    return [GMAIL_SCOPE, SHEETS_SCOPE] if settings.google_sheet_id else [GMAIL_SCOPE]
 
 
 def load_credentials(settings: Settings | None = None) -> Credentials:
@@ -40,7 +43,7 @@ def load_credentials(settings: Settings | None = None) -> Credentials:
         raise RuntimeError(
             f"No Google token at {token_path}. Run: python -m leads.google_auth (see README)."
         )
-    creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
+    creds = Credentials.from_authorized_user_file(str(token_path), scopes(settings))
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
         # secrets/ is mounted read-only in the worker; the refreshed token then stays in memory.
@@ -74,10 +77,11 @@ def sign_in(settings: Settings | None = None, *, no_browser: bool = False) -> Pa
             f"Missing {secret}. Create an OAuth client (Desktop app) in Google Cloud Console, "
             "download the JSON and save it there."
         )
-    flow = InstalledAppFlow.from_client_secrets_file(str(secret), SCOPES)
+    flow = InstalledAppFlow.from_client_secrets_file(str(secret), scopes(settings))
+    hint = {"login_hint": settings.gmail_account} if settings.gmail_account else {}
     if no_browser:
         flow.redirect_uri = MANUAL_REDIRECT_URI
-        auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
+        auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent", **hint)
         print("\n1. Open this URL in your browser and approve access:\n")
         print(auth_url)
         print(
@@ -89,11 +93,12 @@ def sign_in(settings: Settings | None = None, *, no_browser: bool = False) -> Pa
         flow.fetch_token(authorization_response=response)
         creds = flow.credentials
     else:
-        creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
+        creds = flow.run_local_server(port=0, access_type="offline", prompt="consent", **hint)
 
     token_path = settings.token_path
     token_path.parent.mkdir(parents=True, exist_ok=True)
     token_path.write_text(creds.to_json(), encoding="utf-8")
+    token_path.chmod(0o600)
     return token_path
 
 

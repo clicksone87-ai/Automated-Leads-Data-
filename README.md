@@ -40,6 +40,8 @@ uv run leads --help               # all commands
 ```
 
 - Prefect UI: http://localhost:4200 (deployments, schedules, run logs and retries)
+- Lead dashboard: `docker compose up -d --build db app`, then http://localhost:3300
+  (or without Docker: `uv run leads dashboard`). It has no login, so keep it on this computer.
 - Metabase (optional): `docker compose --profile dashboard up -d`, then http://localhost:3000
   (change with `METABASE_PORT` in `.env`).
   Connect it to host `db`, port 5432, with the credentials from `.env`.
@@ -51,8 +53,8 @@ sources are enabled). Restart the worker after changing schedules:
 
 ## Google OAuth sign-in (Gmail + Sheets)
 
-1. In Google Cloud Console create a project, enable the **Gmail API** and the
-   **Google Sheets API**, configure the OAuth consent screen (External, add yourself as
+1. In Google Cloud Console create a project, enable the **Gmail API** (and the
+   **Google Sheets API** if you use a Sheet), configure the OAuth consent screen (External, add yourself as
    a test user), and create an **OAuth client ID** of type **Desktop app**.
 2. Download the JSON and save it as `secrets/client_secret.json`.
 3. Sign in once. This writes `secrets/token.json`:
@@ -70,9 +72,10 @@ sources are enabled). Restart the worker after changing schedules:
    Alternative on the host, which opens your browser directly:
    `uv run python -m leads.google_auth`.
 
-4. Put the target spreadsheet's id in `.env` as `GOOGLE_SHEET_ID`.
+4. Set `GMAIL_ACCOUNT` in `.env`; drafts are refused in any other account. Set
+   `GOOGLE_SHEET_ID` (before signing in) only if you use a Sheet.
 
-Scopes: `gmail.modify` (create drafts, read replies, apply labels) and `spreadsheets`.
+Scopes: `gmail.modify` (create drafts, read replies, apply labels) and, with a Sheet, `spreadsheets`.
 The code never calls `messages.send`.
 
 ## CLI
@@ -115,10 +118,10 @@ Each item maps to `TODO(build step N)` markers in the code.
 - [x] **1. Project setup**: repo, uv, Docker Compose, settings, DB schema + Alembic, CI (ruff, mypy, pytest)
 - [ ] **2. Overture + Foursquare loaders** for 2–3 test countries, normalise, country filter (`sources/overture.py`, `sources/foursquare.py`, `pipeline/__init__.py`) — Overture done (tested on MT, IE); Foursquare tested on MT
 - [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`) — loaders written; UK (Leeds–Manchester) tested end to end, Canada file loaded, Norway, France and Australia not yet loaded
-- [ ] **4. Website checker + email/WhatsApp extractor**: wire `check_pending` to the DB (`enrich/website.py`; classifier and extractors are done)
-- [ ] **5. Dedupe/match + CSV export + Metabase**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
+- [x] **4. Website checker + email/WhatsApp extractor** (`enrich/website.py`, `enrich/check.py`); a status is set only on proof, anything unclear stays empty
+- [x] **5. Dedupe/match + CSV export + dashboard**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
 - [ ] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)
-- [ ] **7. Gmail drafts, labels, Gmail sync, follow-ups, Google Sheet view, templates per language, opt-outs, sanctions check** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
+- [ ] **7. AI emails, Gmail drafts, labels, Gmail sync, follow-ups, opt-outs, sanctions check: done for English-speaking countries. Left: Google Sheet view, other languages** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
 - [ ] **8. Scale to all countries**, OSM history, more registries (`sources/osm.py`)
 - [ ] **9. Licensed directory feeds** (optional, `sources/directories.py`)
 

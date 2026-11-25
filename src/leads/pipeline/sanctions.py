@@ -9,23 +9,50 @@ country in its addresses. SDN entries with no address country match on name alon
 from __future__ import annotations
 
 import csv
+import time
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import httpx
+import structlog
 from rapidfuzz import fuzz, process
+from sqlalchemy import select, update
 
+from leads.db import session_scope
+from leads.models import Lead, LeadStatus
 from leads.pipeline.normalise import normalise_name
+from leads.settings import Settings, get_settings
+
+log = structlog.get_logger(__name__)
 
 SDN_NULL = "-0-"
 
-# OFAC address files use English country names. TODO(build step 7): complete this map
-# for every country in config/countries.yaml (unmapped names are ignored).
+# OFAC address files use English country names. A name missing here leaves the entry without
+# a country, so it matches everywhere.
 COUNTRY_NAME_TO_ISO2: dict[str, str] = {
     "united kingdom": "GB",
     "united states": "US",
+    "ireland": "IE",
+    "malta": "MT",
+    "netherlands": "NL",
+    "belgium": "BE",
+    "switzerland": "CH",
+    "austria": "AT",
+    "norway": "NO",
+    "sweden": "SE",
+    "australia": "AU",
+    "china": "CN",
+    "hong kong": "HK",
+    "iran": "IR",
+    "pakistan": "PK",
+    "afghanistan": "AF",
+    "colombia": "CO",
+    "panama": "PA",
+    "north korea": "KP",
+    "korea, north": "KP",
+    "singapore": "SG",
     "russia": "RU",
     "turkey": "TR",
     "turkiye": "TR",
@@ -132,15 +159,82 @@ def match_sanctions(
     return SanctionsMatch(ent_num=entry.ent_num, sdn_name=entry.name, score=float(score))
 
 
-def screen_leads(*, refresh_list: bool = True) -> dict[str, int]:
-    """Download the SDN list (daily) and set ``leads.sanctions_hit`` for matching leads.
+class Screen:
+    """The loaded list, indexed by country so one lookup stays fast."""
 
-    TODO(build step 7):
-      1. ``download_sdn(settings.data_dir / "sanctions", ...)`` when the local copy is
-         older than 24 h (or ``refresh_list``).
-      2. ``load_sdn`` once; index entries by country to keep matching fast.
-      3. Stream active leads (id, name, country) in chunks; ``match_sanctions`` each.
-      4. Bulk-update ``sanctions_hit`` (true for hits, false otherwise) and log hits.
-      5. Return counts: {"screened": n, "hits": n}.
+    def __init__(self, entries: Iterable[SdnEntry], min_score: int) -> None:
+        self._min = min_score
+        self._by_country: dict[str, dict[str, SdnEntry]] = defaultdict(dict)
+        for entry in entries:
+            for country in entry.countries or {""}:
+                self._by_country[country][entry.name_norm] = entry
+
+    def match(self, name: str, country_iso2: str | None) -> SanctionsMatch | None:
+        wanted = normalise_name(name)
+        if not wanted:
+            return None
+        for country in {"", country_iso2 or ""}:
+            pool = self._by_country.get(country)
+            if not pool:
+                continue
+            best = process.extractOne(
+                wanted, pool.keys(), scorer=fuzz.token_sort_ratio, score_cutoff=self._min
+            )
+            if best:
+                entry = pool[best[0]]
+                return SanctionsMatch(entry.ent_num, entry.name, float(best[1]))
+        return None
+
+
+_loaded: tuple[float, Screen] | None = None
+
+
+def current_screen(settings: Settings, *, refresh: bool = False) -> Screen:
+    """Today's list, downloaded when the local copy is older than a day.
+
+    A failed download falls back to a copy of up to a week; without one nothing is screened
+    and the caller must stop.
     """
-    raise NotImplementedError("sanctions.screen_leads (build step 7)")
+    global _loaded
+    directory = settings.data_dir / "sanctions"
+    sdn = directory / "sdn.csv"
+    age = time.time() - sdn.stat().st_mtime if sdn.exists() else float("inf")
+    if refresh or age > 86_400:
+        try:
+            download_sdn(
+                directory, sdn_url=settings.sanctions.sdn_url, add_url=settings.sanctions.add_url
+            )
+        except httpx.HTTPError as exc:
+            if age > 7 * 86_400:
+                raise RuntimeError("The sanctions list could not be downloaded") from exc
+    stamp = sdn.stat().st_mtime
+    if _loaded is None or _loaded[0] != stamp:
+        entries = load_sdn(sdn, directory / "add.csv")
+        if len(entries) < 1000:
+            raise RuntimeError("The sanctions list is incomplete")
+        _loaded = (stamp, Screen(entries, settings.sanctions.min_score))
+    return _loaded[1]
+
+
+def screen_leads(*, refresh_list: bool = True) -> dict[str, int]:
+    """Screen every active lead against the sanctions list and store the result."""
+    screen = current_screen(get_settings(), refresh=refresh_list)
+    hits: list[str] = []
+    screened = 0
+    with session_scope() as session:
+        stmt = select(Lead.lead_id, Lead.name, Lead.country_iso2).where(
+            Lead.status == LeadStatus.ACTIVE
+        )
+        for lead_id, name, country in session.execute(stmt).yield_per(5000):
+            screened += 1
+            if found := screen.match(name, country):
+                hits.append(lead_id)
+                log.info("sanctions_hit", lead_id=lead_id, name=name, listed=found.sdn_name)
+    with session_scope() as session:
+        session.execute(
+            update(Lead)
+            .where(Lead.sanctions_hit.is_(True), Lead.lead_id.not_in(hits))
+            .values(sanctions_hit=False)
+        )
+        session.execute(update(Lead).where(Lead.lead_id.in_(hits)).values(sanctions_hit=True))
+    return {"screened": screened, "hits": len(hits)}

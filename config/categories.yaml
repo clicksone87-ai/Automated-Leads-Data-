@@ -58,22 +58,23 @@ sources:
     "craft=plumber": trades_construction
     "craft=electrician": trades_construction
 
-# Fallback: first group whose keyword appears in the lower-cased category text.
+# Fallback: first group with a keyword in the category text. Words of up to four letters
+# match whole words, longer ones the start of a word. Order matters: "nail bar" is beauty.
 keywords:
-  food_drink: [restaurant, cafe, coffee, bakery, bar, pub, pizza, food, catering, dining, takeaway, kebab]
-  beauty_wellness: [beauty, salon, hair, barber, nail, spa, massage, cosmetic, tattoo, hairdresser]
-  health_medical: [dentist, dental, clinic, doctor, medical, pharmacy, physio, optician, chiropract]
-  trades_construction: [plumb, electric, roofing, builder, construction, carpent, painter, hvac, locksmith]
-  home_services: [cleaning, gardening, landscap, pest, moving, removals, handyman]
-  automotive: [car, auto, garage, tyre, tire, mechanic, motor]
-  professional_services: [accountant, lawyer, legal, consult, insurance, marketing, agency, architect]
-  hospitality: [hotel, hostel, guest house, guesthouse, motel, bed and breakfast, lodging]
-  fitness_sports: [gym, fitness, yoga, pilates, sport, martial arts, dance]
-  education: [school, tutor, academy, training, driving school, language school]
-  real_estate: [real estate, estate agent, property, realtor]
-  pets: [pet, vet, veterinar, dog, grooming]
-  events_entertainment: [event, wedding, photograph, dj, entertainment, venue]
-  retail: [shop, store, boutique, retail, florist, jewel, clothing]
+  beauty_wellness: [beauty, salon, hair, barber, nail, spa, massage, cosmetic, tattoo, tanning, skin care]
+  food_drink: [restaurant, cafe, café, coffee, bakery, bakeries, bar, pub, pizza, food, catering, dining, takeaway, kebab, brewery, gastropub, sandwich, ice cream, dessert, tea house]
+  health_medical: [dentist, dental, clinic, doctor, medical, medicine, pharmacy, physio, physical therap, optician, optometr, chiropract, health, hospital, counsel, psycholog, naturopath, acupuncture, orthodont]
+  trades_construction: [plumb, electrician, electrical, roofing, builder, construction, carpent, painter, painting, hvac, heating, locksmith, contractor, flooring, scaffold]
+  home_services: [cleaning, gardening, gardener, landscap, pest, moving, removals, handyman, home service]
+  pets: [pet, vet, veterinar, dog, animal]
+  automotive: [car, auto, automotive, automobile, garage, tyre, tire, mechanic, motor, vehicle]
+  real_estate: [real estate, estate agent, property, realtor, letting]
+  education: [school, preschool, tutor, academy, training, education, college, nursery, childcare]
+  professional_services: [accountant, accounting, lawyer, attorney, law firm, legal, solicitor, consult, insurance, marketing, advertising, agency, architect, financial, information technology, it service, web designer, employment, printing]
+  hospitality: [hotel, hostel, guest house, guesthouse, motel, bed and breakfast, lodging, holiday rental, vacation rental, campground]
+  fitness_sports: [gym, fitness, yoga, pilates, sport, martial arts, dance, boxing, golf]
+  events_entertainment: [event, wedding, photograph, dj, entertainment, venue, musician, party]
+  retail: [shop, shopping, store, boutique, retail, florist, jewel, clothing, supermarket]
 
 # First two digits of the activity code used by registries (NACE / NAF / UK SIC).
 nace:

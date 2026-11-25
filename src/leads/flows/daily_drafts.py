@@ -11,7 +11,7 @@ from leads.db import finish_run, start_run
 
 @task
 def check_new_websites() -> dict[str, int]:
-    from leads.enrich.website import check_pending
+    from leads.enrich.check import check_pending
 
     return check_pending(recheck=False)
 
@@ -33,6 +33,10 @@ def create_drafts(batch_size: int | None) -> dict[str, int]:
 @task(retries=2, retry_delay_seconds=120)
 def update_sheet() -> dict[str, int]:
     from leads.export.sheets import update_sheet as _update_sheet
+    from leads.settings import get_settings
+
+    if not get_settings().google_sheet_id:
+        return {"rows": 0}
 
     return _update_sheet()
 

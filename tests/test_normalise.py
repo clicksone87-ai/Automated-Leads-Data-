@@ -211,3 +211,20 @@ class TestFilters:
         self, source: str, category: str | None, path: list[str], expected: bool
     ) -> None:
         assert is_non_business(source, category, path, load_filters()) is expected
+
+
+@pytest.mark.parametrize(
+    ("source", "category", "group"),
+    [
+        ("foursquare", "Business and Professional Services > Barbershop", "beauty_wellness"),
+        ("overture", "health_care", "health_medical"),
+        ("overture", "travel_and_transportation", "other"),
+        ("overture", "nail_bar", "beauty_wellness"),
+        ("overture", "bed_and_breakfast", "hospitality"),
+        ("overture", "sports_bar", "food_drink"),
+        ("overture", "car_wash", "automotive"),
+        ("overture", "cocktail_bars", "food_drink"),
+    ],
+)
+def test_category_words(source: str, category: str, group: str) -> None:
+    assert map_category(source, category, load_categories()) == group

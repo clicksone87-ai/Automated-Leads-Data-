@@ -14,6 +14,7 @@ def configure_logging(level: str = "INFO", *, json: bool = False) -> None:
     numeric = logging.getLevelNamesMapping().get(level.upper(), logging.INFO)
     logging.basicConfig(format="%(message)s", stream=sys.stderr, level=numeric)
     renderer: Any = structlog.processors.JSONRenderer() if json else structlog.dev.ConsoleRenderer()
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per page visited otherwise
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

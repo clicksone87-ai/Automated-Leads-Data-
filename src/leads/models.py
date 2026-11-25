@@ -104,6 +104,7 @@ class Lead(Base):
     website: Mapped[str | None]
     domain: Mapped[str | None]
     website_status: Mapped[str | None]  # WebsiteStatus; NULL = not checked yet
+    website_reason: Mapped[str | None]  # what the check saw, e.g. "http 404"
     website_checked_at: Mapped[datetime | None]
     whatsapp_number: Mapped[str | None]
     whatsapp_evidence: Mapped[str | None]  # URL of the page that shows the number
@@ -176,6 +177,8 @@ class Outreach(Base):
     lead_id: Mapped[str] = mapped_column(ForeignKey("leads.lead_id", ondelete="CASCADE"))
     channel: Mapped[str] = mapped_column(server_default=text("'email'"))  # Channel
     stage: Mapped[str]  # Stage
+    is_followup: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    recipient: Mapped[str | None]  # lower-cased address the message is for
     gmail_draft_id: Mapped[str | None]
     gmail_thread_id: Mapped[str | None]
     drafted_at: Mapped[datetime | None]
@@ -189,8 +192,30 @@ class Outreach(Base):
 
     __table_args__ = (
         Index("ix_outreach_lead_id", "lead_id"),
+        Index("uq_outreach_lead_message", "lead_id", "channel", "is_followup", unique=True),
+        Index(
+            "uq_outreach_recipient",
+            "recipient",
+            unique=True,
+            postgresql_where=text("recipient IS NOT NULL AND NOT is_followup"),
+        ),
         Index("ix_outreach_gmail_thread_id", "gmail_thread_id"),
     )
+
+
+class GeneratedEmail(Base):
+    """Latest AI-written first email of a lead."""
+
+    __tablename__ = "generated_emails"
+
+    lead_id: Mapped[str] = mapped_column(
+        ForeignKey("leads.lead_id", ondelete="CASCADE"), primary_key=True
+    )
+    subject: Mapped[str]
+    body: Mapped[str]
+    model: Mapped[str]
+    website_status: Mapped[str]  # the status the text was written for
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class DomainAge(Base):
