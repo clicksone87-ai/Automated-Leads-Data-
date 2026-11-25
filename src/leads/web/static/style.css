@@ -140,3 +140,4 @@ td .clip,td .clip a{white-space:nowrap}
 table tbody tr.click td:nth-child(3),table tbody tr.click td:nth-child(5){white-space:nowrap;overflow-wrap:normal}
 tr.click td:nth-child(6) .clip{max-width:140px}
 input[dir],textarea[dir]{font-family:-apple-system,"SF Arabic","Geeza Pro",Tahoma,Arial,sans-serif}
+.notice.bad{background:var(--red-bg);color:#8c231d;border-left-color:var(--red)}

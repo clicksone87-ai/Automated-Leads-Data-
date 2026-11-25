@@ -14,7 +14,7 @@ from xml.etree import ElementTree
 import duckdb
 import httpx
 
-from leads.sources.base import RawRecord, bbox_sql
+from leads.sources.base import RawRecord, bbox_sql, country_batches
 
 FETCH_BATCH = 10_000
 DEFAULT_BASE_URI = "s3://overturemaps-us-west-2/release"
@@ -116,13 +116,14 @@ class OvertureSource:
 
     def fetch(self, countries: Collection[str], since: date) -> Iterator[RawRecord]:
         """Stream places for ``countries``. ``since`` is unused (Overture has no dates)."""
-        query = self.build_query(countries)
         con = self.connect()
-        cursor = con.execute(query, {"countries": sorted(countries)})
-        columns = [d[0] for d in cursor.description or []]
-        while rows := cursor.fetchmany(FETCH_BATCH):
-            for values in rows:
-                yield self.to_record(dict(zip(columns, values, strict=True)))
+        # One box per query: files can be skipped for a single box, not for many joined by OR.
+        for part in country_batches(self.bbox, countries):
+            cursor = con.execute(self.build_query(part), {"countries": part})
+            columns = [d[0] for d in cursor.description or []]
+            while rows := cursor.fetchmany(FETCH_BATCH):
+                for values in rows:
+                    yield self.to_record(dict(zip(columns, values, strict=True)))
 
     def to_record(self, row: Mapping[str, Any]) -> RawRecord:
         return RawRecord(

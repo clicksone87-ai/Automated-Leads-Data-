@@ -4,11 +4,19 @@ from __future__ import annotations
 
 from prefect import flow
 
+from leads.alerts import on_flow_failure
 from leads.db import finish_run, start_run
 from leads.settings import get_settings
 
 
-@flow(name="gmail-sync", retries=1, retry_delay_seconds=300, log_prints=True)
+@flow(
+    name="gmail-sync",
+    retries=1,
+    retry_delay_seconds=300,
+    log_prints=True,
+    on_failure=[on_flow_failure],
+    on_crashed=[on_flow_failure],
+)
 def gmail_sync() -> dict[str, int]:
     from leads.outreach.gmail_sync import sync
 

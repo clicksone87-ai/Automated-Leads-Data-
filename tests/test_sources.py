@@ -6,7 +6,8 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from leads.sources.base import bbox_sql
+from leads.sources import foursquare
+from leads.sources.base import bbox_sql, country_batches
 from leads.sources.foursquare import COLUMNS, FoursquareSource, social_urls
 from leads.sources.overture import OvertureSource, foursquare_ids, parse_releases
 
@@ -114,3 +115,24 @@ def test_foursquare_needs_token_or_uri() -> None:
 
 def test_social_urls() -> None:
     assert social_urls(None, "@shop", None) == ["https://www.instagram.com/shop"]
+
+
+def test_boxed_countries_are_asked_one_by_one() -> None:
+    boxes = {"AE": (1, 2, 3, 4), "SA": (1, 2, 3, 4)}
+    assert country_batches(boxes, {"SA", "AE"}) == [["AE"], ["SA"]]
+    assert country_batches(boxes, {"SA", "FR"}) == [["FR", "SA"]]
+
+
+def test_release_is_known_before_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = FoursquareSource(None, hf_token="t")
+    monkeypatch.setattr(foursquare, "latest_release_uri", lambda token: "hf://found/*.parquet")
+    seen: list[str | None] = []
+
+    def connect() -> None:
+        seen.append(source.uri)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(source, "connect", connect)
+    with pytest.raises(RuntimeError, match="stop"):
+        list(source.fetch({"MT"}, date(2018, 1, 1)))
+    assert seen == ["hf://found/*.parquet"]

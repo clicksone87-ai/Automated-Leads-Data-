@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, Select, and_, exists, func, or_, select, text
@@ -138,7 +138,7 @@ def lead_detail(session: Session, lead_id: str) -> dict[str, Any] | None:
     columns = (
         *LIST_COLUMNS, "whatsapp_number", "whatsapp_evidence", "socials",
         "address", "region", "postcode", "first_seen", "last_seen", "phone_type", "status",
-        "sanctions_hit",
+        "sanctions_hit", "lawful_basis_note",
     )  # fmt: skip
     data = _lead_row({c: getattr(lead, c) for c in columns})
     data["source_records"] = [
@@ -271,6 +271,28 @@ def last_runs(session: Session) -> dict[str, dict[str, Any]]:
         .order_by(Run.flow, Run.started_at.desc())
     )
     return {r["flow"]: dict(r) for r in session.execute(stmt).mappings()}
+
+
+def troubles(session: Session) -> list[str]:
+    """What needs the user's attention, in plain words."""
+    names = {
+        "gmail-sync": "Gmail sync",
+        "daily-drafts": "The daily check",
+        "monthly-collect": "The monthly collect",
+        "backup-check": "The backup check",
+    }
+    found = [
+        f"{names[flow]} failed on its last run."
+        for flow, run in last_runs(session).items()
+        if flow in names and run["status"] == "failed"
+    ]
+    waiting = session.scalar(
+        select(exists().where(Lead.website_checked_at.is_(None), Lead.status == LeadStatus.ACTIVE))
+    )
+    last = session.scalar(select(func.max(Lead.website_checked_at)))
+    if waiting and last and datetime.now(UTC) - last > timedelta(hours=2):
+        found.append("Website checks have stopped.")
+    return found
 
 
 def clear_cache() -> None:

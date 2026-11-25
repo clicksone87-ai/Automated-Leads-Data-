@@ -122,6 +122,7 @@ class Lead(Base):
     sources: Mapped[list[str]] = mapped_column(server_default=text("'{}'::text[]"))
     first_seen: Mapped[datetime | None]
     last_seen: Mapped[datetime | None]
+    lawful_basis_note: Mapped[str | None]  # set when the lead is first written to
     sanctions_hit: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())

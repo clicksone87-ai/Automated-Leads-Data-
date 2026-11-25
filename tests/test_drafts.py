@@ -13,8 +13,9 @@ from pydantic import SecretStr
 from sqlalchemy import select, text
 
 import leads.db as db
+from leads import alerts
 from leads.models import Base, Lead, Outreach, Stage, Suppression, WebsiteStatus
-from leads.outreach import ai, drafts, gmail_sync
+from leads.outreach import ai, drafts, gmail_api, gmail_sync
 from leads.outreach.ai import AiError, LeadFacts, write_email
 from leads.outreach.phrases import AR, LANGUAGES, display_name, lead_language, readable
 from leads.outreach.templates import template_path
@@ -418,3 +419,54 @@ def test_every_language_is_complete() -> None:
         assert "{name}" in phrases.greeting
         if code != "en":
             assert template_path("email_followup", code).parent.name == code
+
+
+def test_gmail_waits_on_rate_limits_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(gmail_api, "BASE_WAIT", 0)
+
+    class Flaky:
+        def __init__(self, status: int) -> None:
+            self.status, self.calls = status, 0
+
+        def execute(self) -> str:
+            self.calls += 1
+            if self.calls == 1:
+                raise http_error(self.status)
+            return "ok"
+
+    assert gmail_api.execute(Flaky(429), idempotent=False) == "ok"
+    assert gmail_api.execute(Flaky(503)) == "ok"
+    for status in (503, 400):
+        request = Flaky(status)
+        with pytest.raises(Exception, match=str(status)):
+            gmail_api.execute(request, idempotent=False)
+        assert request.calls == 1
+
+
+def test_contact_note_is_kept(settings: Settings) -> None:
+    save(settings, Gmail())
+    with db.session_scope() as s:
+        lead = s.get(Lead, "a")
+        assert lead and lead.lawful_basis_note and "opt-out" in lead.lawful_basis_note
+
+
+def test_failure_is_reported_once(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(alerts, "get_settings", lambda: settings)
+    placed: list[dict[str, Any]] = []
+
+    class Inbox(Gmail):
+        def insert(self, userId: str, body: dict[str, Any]) -> Call:
+            placed.append(body)
+            return Call({})
+
+    inbox = Inbox()
+    inbox.messages = lambda: inbox  # type: ignore[method-assign]
+    db.finish_run(db.start_run("gmail-sync"), "failed")
+    assert alerts.report_failure("gmail-sync", "token expired", inbox)
+    db.finish_run(db.start_run("gmail-sync"), "failed")
+    assert not alerts.report_failure("gmail-sync", "token expired", inbox)
+    db.finish_run(db.start_run("gmail-sync"), "success")
+    db.finish_run(db.start_run("gmail-sync"), "failed")
+    assert alerts.report_failure("gmail-sync", "token expired", inbox)
+    assert len(placed) == 2 and "INBOX" in placed[0]["labelIds"]
+    assert b"token expired" in base64.urlsafe_b64decode(placed[0]["raw"])

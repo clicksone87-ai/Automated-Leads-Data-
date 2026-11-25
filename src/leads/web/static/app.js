@@ -95,6 +95,7 @@ async function overviewPage() {
   const stat = (value, label, note, f, tone, ico) => h('button', { class: 'stat t-' + tone, onclick: () => go(f) }, h('span', { class: 'ico' }, icon(ICON[ico])), h('b', {}, num(value)), h('span', {}, label), h('small', {}, note));
   return [
     ...head('Overview', 'Every business collected so far. Click a number or a bar to see those leads.'),
+    d.troubles.length > 0 && h('div', { class: 'notice bad', role: 'alert' }, 'Needs attention:', h('ul', {}, d.troubles.map((x) => h('li', {}, x)))),
     t.checked < t.total && h('div', { class: 'notice' }, num(t.checked) + ' of ' + num(t.total) + ' leads have had their website checked. Until then, “no website listed” means no source gave one, not that the business has none.'),
     h('div', { class: 'stats' },
       stat(t.total, 'All leads', d.countries.length + ' countries', {}, 'blue', 'all'),
@@ -233,7 +234,7 @@ function openLead(id) {
         row('Social pages', socials.length && socials.map(([k, v], i) => [i ? ', ' : '', safeLink(v, k)]))),
       h('h2', {}, 'Website'), h('dl', {}, row('Address', d.website ? safeLink(d.website) : 'None listed'), row('Status', webChip(d)), row('Reason', d.website_reason), row('Checked', when(d.website_checked_at))),
       h('h2', {}, 'Business'), h('dl', {}, row('Category', d.category),
-        row('Opened', d.created_date ? day(d.created_date) + ' (from ' + src(d.age_source) + ')' : 'Unknown')),
+        row('Contact note', d.lawful_basis_note), row('Opened', d.created_date ? day(d.created_date) + ' (from ' + src(d.age_source) + ')' : 'Unknown')),
       h('h2', {}, 'Where this came from'), h('dl', {}, d.source_records.map((s) => row(src(s.source), 'Record ' + s.source_record_id + ', collected ' + day(s.fetched_at)))),
       d.outreach.length > 0 && [h('h2', { class: 'bar' }, 'Outreach'), h('dl', {}, d.outreach.map((o) => row(o.stage, 'Drafted ' + when(o.drafted_at) + (o.sent_at ? ', sent ' + when(o.sent_at) : ''))))],
     ].flat(2).filter(Boolean);

@@ -13,7 +13,7 @@ from sqlalchemy import Float, and_, cast, func, or_, select, update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import ColumnElement
 
-from leads.db import session_scope
+from leads.db import lock_leads, session_scope
 from leads.models import Lead, LeadSource, LeadStatus, Run
 from leads.settings import Settings, get_settings
 
@@ -123,6 +123,7 @@ def run_refresh(run_id: uuid.UUID | str | None = None) -> dict[str, int]:
             log.warning("refresh_skipped", reason="too many leads missing", **counts)
             counts["skipped_too_many"] = 1
             return counts
+        lock_leads(session)
         session.execute(
             update(Lead)
             .where(unseen)

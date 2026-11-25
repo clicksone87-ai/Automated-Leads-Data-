@@ -20,7 +20,7 @@ import structlog
 from rapidfuzz import fuzz, process
 from sqlalchemy import select, update
 
-from leads.db import session_scope
+from leads.db import lock_leads, session_scope
 from leads.models import Lead, LeadStatus
 from leads.pipeline.normalise import normalise_name
 from leads.settings import Settings, get_settings
@@ -233,6 +233,7 @@ def screen_leads(*, refresh_list: bool = True) -> dict[str, int]:
                 hits.append(lead_id)
                 log.info("sanctions_hit", lead_id=lead_id, name=name, listed=found.sdn_name)
     with session_scope() as session:
+        lock_leads(session)
         session.execute(
             update(Lead)
             .where(Lead.sanctions_hit.is_(True), Lead.lead_id.not_in(hits))

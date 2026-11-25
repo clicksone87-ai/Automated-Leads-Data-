@@ -19,7 +19,7 @@ schedules:              # cron expressions, evaluated in `timezone`
   backup_check: "30 3 * * *"     # 03:30: verify the 03:00 pg_dump from the backup container
 
 batch:
-  drafts_per_day: 100
+  drafts_per_day: 50
   website_concurrency: 25       # parallel domains being checked; lower on a slow connection
   db_chunk_size: 5000           # rows per insert/upsert batch
   raw_chunk_size: 100000        # rows per raw parquet part file
@@ -78,7 +78,7 @@ wayback:                        # first capture of a lead's own website, as age 
 
 collect:
   # The monthly run; [] = every country in countries.yaml.
-  countries: [GB, IE, MT, AE, SA, QA, KW, BH, OM, JO, LB, IQ, SY, YE, PS]
+  countries: [GB, IE, MT, AE, SA, QA, KW, BH, OM, JO, LB, IQ, SY, YE, PS, "NO"]
 
 refresh:
   closed_after_missed_runs: 2
@@ -90,6 +90,7 @@ country_bbox:
   GB: [-2.35, 53.35, -1.40, 53.90]     # Leeds to Manchester; whole GB: [-8.8, 49.8, 2.0, 61.0]
   IE: [-10.8, 51.3, -5.9, 55.5]
   MT: [14.1, 35.7, 14.7, 36.2]
+  "NO": [4.0, 57.8, 31.3, 71.3]
   # Arab Middle East
   AE: [51.4, 22.6, 56.5, 26.2]
   SA: [34.4, 16.2, 55.7, 32.3]

@@ -24,6 +24,7 @@ from leads.models import (
     Suppression,
 )
 from leads.outreach import ai
+from leads.outreach.gmail_api import execute
 from leads.outreach.gmail_drafts import build_mime, create_draft
 from leads.outreach.labels import ensure_labels, labels_for_lead
 from leads.outreach.phrases import LANGUAGES, display_name, lead_language, readable
@@ -184,10 +185,20 @@ def check_text(subject: str, body: str) -> tuple[str, str]:
     return subject, body
 
 
+def basis_note(lead: Lead) -> str:
+    """Where the address came from, kept for questions about why we wrote."""
+    seen = f", first seen {lead.first_seen:%Y-%m-%d}" if lead.first_seen else ""
+    origin = ", ".join(lead.sources) or "unknown source"
+    return (
+        f"Business email published by {origin}{seen}. One-to-one business offer with an "
+        "opt-out line. Local rules not yet reviewed by a lawyer."
+    )
+
+
 def check_account(service: Any, settings: Settings) -> None:
     if not settings.gmail_account:
         raise DraftError("GMAIL_ACCOUNT is missing in .env")
-    profile = service.users().getProfile(userId=settings.gmail_user_id).execute()
+    profile = execute(service.users().getProfile(userId=settings.gmail_user_id))
     actual = str(profile.get("emailAddress", "")).lower()
     if actual != settings.gmail_account.strip().lower():
         raise DraftError("Gmail is signed in to a different account than GMAIL_ACCOUNT in .env")
@@ -222,6 +233,7 @@ def save_to_gmail(
             raise DraftError(" ".join(found))
         recipient = str(lead.email).strip().lower()
         name, country = lead.name, lead.country_iso2
+        basis = basis_note(lead)
         labels = labels_for_lead(
             country_iso2=country,
             category_group=load_categories().display_name(lead.category_group),
@@ -278,6 +290,11 @@ def save_to_gmail(
             "Gmail did not confirm the draft. Check the Drafts folder before trying again."
         ) from exc
     with session_scope() as session:
+        session.execute(
+            update(Lead)
+            .where(Lead.lead_id == lead_id, Lead.lawful_basis_note.is_(None))
+            .values(lawful_basis_note=basis)
+        )
         session.execute(
             update(Outreach)
             .where(Outreach.id == row_id)

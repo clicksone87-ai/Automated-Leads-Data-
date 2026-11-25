@@ -9,6 +9,7 @@ from typing import Any
 
 from prefect import flow, task
 
+from leads.alerts import on_flow_failure
 from leads.db import finish_run, start_run
 from leads.settings import get_settings
 
@@ -37,7 +38,12 @@ def update_sheet() -> dict[str, int]:
     return _update_sheet()
 
 
-@flow(name="daily-drafts", log_prints=True)
+@flow(
+    name="daily-drafts",
+    log_prints=True,
+    on_failure=[on_flow_failure],
+    on_crashed=[on_flow_failure],
+)
 def daily_drafts(batch_size: int | None = None) -> dict[str, Any]:
     run_id = start_run("daily-drafts")
     counts: dict[str, Any] = {}

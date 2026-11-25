@@ -86,7 +86,7 @@ def index() -> FileResponse:
 
 @app.get("/api/overview")
 def overview(db: DB) -> dict[str, Any]:
-    return queries.overview(db)
+    return {**queries.overview(db), "troubles": queries.troubles(db)}
 
 
 @app.get("/api/options")

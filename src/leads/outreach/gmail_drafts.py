@@ -13,6 +13,7 @@ import structlog
 from sqlalchemy import Select, and_, case, exists, false, select
 
 from leads.models import Lead, LeadStatus, Outreach, Suppression, WebsiteStatus
+from leads.outreach.gmail_api import execute
 
 log = structlog.get_logger(__name__)
 
@@ -76,16 +77,20 @@ def create_draft(
     service: Any, msg: EmailMessage, label_ids: list[str], user_id: str = "me"
 ) -> dict[str, Any]:
     """Create a Gmail draft and apply labels to its message. Returns the draft resource."""
-    draft: dict[str, Any] = (
-        service.users()
-        .drafts()
-        .create(userId=user_id, body={"message": encode_message(msg)})
-        .execute()
+    draft: dict[str, Any] = execute(
+        service.users().drafts().create(userId=user_id, body={"message": encode_message(msg)}),
+        idempotent=False,
     )
     if label_ids:
-        service.users().messages().modify(
-            userId=user_id, id=draft["message"]["id"], body={"addLabelIds": label_ids}
-        ).execute()
+        # The draft exists by now: a label that cannot be set is added by the sync later.
+        try:
+            execute(
+                service.users()
+                .messages()
+                .modify(userId=user_id, id=draft["message"]["id"], body={"addLabelIds": label_ids})
+            )
+        except Exception as exc:
+            log.warning("labels_not_set", error=repr(exc))
     return draft
 
 

@@ -7,6 +7,7 @@ from typing import Any
 
 from prefect import flow, get_run_logger, task
 
+from leads.alerts import on_flow_failure
 from leads.db import finish_run, save_counts, start_run
 from leads.pipeline.refresh import coverage_counts
 from leads.settings import get_settings, load_countries
@@ -51,7 +52,12 @@ def refresh(run_id: str) -> dict[str, int]:
     return run_refresh(run_id)
 
 
-@flow(name="monthly-collect", log_prints=True)
+@flow(
+    name="monthly-collect",
+    log_prints=True,
+    on_failure=[on_flow_failure],
+    on_crashed=[on_flow_failure],
+)
 def monthly_collect(sources: list[str] | None = None) -> dict[str, Any]:
     """Collect all enabled sources -> process -> sanctions -> refresh.
 

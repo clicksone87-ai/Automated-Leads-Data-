@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from leads.models import Stage
+from leads.outreach.gmail_api import execute
 
 ROOT = "Leads"
 STAGE_NAMES: dict[Stage, str] = {
@@ -78,7 +79,7 @@ def ensure_labels(service: Any, names: list[str], user_id: str = "me") -> dict[s
     """
     existing = {
         lbl["name"]: lbl["id"]
-        for lbl in service.users().labels().list(userId=user_id).execute().get("labels", [])
+        for lbl in execute(service.users().labels().list(userId=user_id)).get("labels", [])
     }
     wanted: list[str] = []
     for name in names:
@@ -92,6 +93,8 @@ def ensure_labels(service: Any, names: list[str], user_id: str = "me") -> dict[s
                 "labelListVisibility": "labelShow",
                 "messageListVisibility": "show",
             }
-            created = service.users().labels().create(userId=user_id, body=body).execute()
+            created = execute(
+                service.users().labels().create(userId=user_id, body=body), idempotent=False
+            )
             existing[name] = created["id"]
     return {name: existing[name] for name in names}

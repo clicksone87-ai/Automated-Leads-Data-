@@ -12,6 +12,7 @@ from pathlib import Path
 
 from prefect import flow, get_run_logger
 
+from leads.alerts import on_flow_failure
 from leads.db import finish_run, start_run
 from leads.settings import get_settings
 
@@ -37,7 +38,12 @@ def verify_backup(backups_dir: Path, *, now: float | None = None) -> Path:
     return newest
 
 
-@flow(name="backup-check", log_prints=True)
+@flow(
+    name="backup-check",
+    log_prints=True,
+    on_failure=[on_flow_failure],
+    on_crashed=[on_flow_failure],
+)
 def backup_check() -> str:
     run_id = start_run("backup-check")
     try:

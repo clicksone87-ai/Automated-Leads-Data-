@@ -12,7 +12,7 @@ from typing import Any
 import structlog
 from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 
-from leads.db import session_scope
+from leads.db import lock_leads, session_scope
 from leads.enrich.website import FetchError, WebsiteCheck, check_many, network_ok
 from leads.models import Lead, LeadStatus, WebsiteStatus
 from leads.pipeline.normalise import host_of, is_platform, normalise_website, registered_domain
@@ -136,6 +136,7 @@ def _save(
 ) -> dict[str, int]:
     counts: dict[str, int] = {}
     with session_scope() as session:
+        lock_leads(session)
         domains = {d for lead in leads if (d := lead.domain)}
         crowded = set(
             session.scalars(

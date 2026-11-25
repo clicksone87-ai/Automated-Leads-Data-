@@ -14,7 +14,7 @@ from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from leads.db import session_scope
+from leads.db import lock_leads, session_scope
 from leads.models import DomainAge, Lead, LeadStatus, Outreach
 from leads.pipeline.age import wayback_first_capture
 from leads.pipeline.normalise import SOCIAL_DOMAINS
@@ -122,6 +122,7 @@ def check_wayback(limit: int | None = None) -> dict[str, int]:
             failures = 0
             counts["checked"] += 1
             with session_scope() as session:
+                lock_leads(session)
                 session.execute(
                     insert(DomainAge)
                     .values(domain=domain, first_capture=captured)

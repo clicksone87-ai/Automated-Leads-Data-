@@ -21,7 +21,7 @@ from sqlalchemy import and_, case, delete, exists, func, null, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
-from leads.db import finish_run, session_scope
+from leads.db import finish_run, lock_leads, session_scope
 from leads.models import Lead, LeadSource, LeadStatus, Outreach, Run, point_ewkt
 from leads.pipeline.age import AgeEvidence, AgeResult, keep_lead, resolve_age
 from leads.pipeline.match import (
@@ -616,6 +616,7 @@ def process_run(run_id: uuid.UUID | str) -> dict[str, Any]:
         for country in sorted(c for c in spellings if c in included):
             data = _load_country(country, spellings[country], current, earlier, included, settings)
             with session_scope() as session:
+                lock_leads(session)
                 totals += load_country(
                     session, data, run_id=run_uuid, seen_at=seen_at, settings=settings
                 )

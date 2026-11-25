@@ -20,6 +20,7 @@ from leads.db import session_scope
 from leads.models import Lead, LeadStatus, Outreach, Stage, Suppression
 from leads.outreach import ai
 from leads.outreach.drafts import check_account
+from leads.outreach.gmail_api import execute
 from leads.outreach.gmail_drafts import build_mime, encode_message
 from leads.outreach.labels import ensure_labels, labels_for_lead, other_stage_labels
 from leads.outreach.phrases import LANGUAGES, display_name, lead_language
@@ -187,7 +188,7 @@ def _missing(exc: Exception) -> bool:
 
 def _draft_exists(service: Any, user: str, draft_id: str) -> bool:
     try:
-        service.users().drafts().get(userId=user, id=draft_id, format="minimal").execute()
+        execute(service.users().drafts().get(userId=user, id=draft_id, format="minimal"))
     except Exception as exc:
         if _missing(exc):
             return False
@@ -197,7 +198,7 @@ def _draft_exists(service: Any, user: str, draft_id: str) -> bool:
 
 def _thread(service: Any, user: str, thread_id: str) -> list[dict[str, Any]]:
     try:
-        found = service.users().threads().get(userId=user, id=thread_id, format="full").execute()
+        found = execute(service.users().threads().get(userId=user, id=thread_id, format="full"))
     except Exception as exc:
         if _missing(exc):
             return []
@@ -223,11 +224,15 @@ def _relabel(service: Any, settings: Settings, thread_id: str, lead: Lead, stage
     user = settings.gmail_user_id
     add = ensure_labels(service, wanted, user)
     remove = ensure_labels(service, other_stage_labels(stage), user)
-    service.users().threads().modify(
-        userId=user,
-        id=thread_id,
-        body={"addLabelIds": list(add.values()), "removeLabelIds": list(remove.values())},
-    ).execute()
+    execute(
+        service.users()
+        .threads()
+        .modify(
+            userId=user,
+            id=thread_id,
+            body={"addLabelIds": list(add.values()), "removeLabelIds": list(remove.values())},
+        )
+    )
 
 
 def _follow_up(
@@ -281,7 +286,10 @@ def _follow_up(
         message["In-Reply-To"] = state.sent_message_id
         message["References"] = state.sent_message_id
     body = {"message": {**encode_message(message), "threadId": row.gmail_thread_id}}
-    draft = service.users().drafts().create(userId=settings.gmail_user_id, body=body).execute()
+    draft = execute(
+        service.users().drafts().create(userId=settings.gmail_user_id, body=body),
+        idempotent=False,
+    )
     session.execute(
         update(Outreach).where(Outreach.id == row_id).values(gmail_draft_id=draft["id"])
     )
@@ -303,9 +311,11 @@ def _delete_pending_followup(
     ).all()
     for row in pending:
         try:
-            service.users().drafts().delete(
-                userId=settings.gmail_user_id, id=row.gmail_draft_id
-            ).execute()
+            execute(
+                service.users()
+                .drafts()
+                .delete(userId=settings.gmail_user_id, id=row.gmail_draft_id)
+            )
         except Exception as exc:
             if not _missing(exc):
                 raise

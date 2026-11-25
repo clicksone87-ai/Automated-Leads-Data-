@@ -41,6 +41,14 @@ def session_scope() -> Iterator[Session]:
         session.close()
 
 
+def lock_leads(session: Session) -> None:
+    """Wait until no other job changes leads in bulk; held until this transaction ends.
+
+    Without it two jobs updating the same leads in a different order deadlock.
+    """
+    session.execute(text("SELECT pg_advisory_xact_lock(748302)"))
+
+
 def check_connection() -> dict[str, str]:
     """Return PostgreSQL / PostGIS versions. Raises if the DB is unreachable."""
     with get_engine().connect() as conn:

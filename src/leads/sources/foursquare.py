@@ -15,7 +15,7 @@ import duckdb
 import httpx
 
 from leads.pipeline.age import parse_date_loose
-from leads.sources.base import RawRecord, bbox_sql
+from leads.sources.base import RawRecord, bbox_sql, country_batches
 
 FETCH_BATCH = 10_000
 COLUMNS = (
@@ -113,14 +113,16 @@ class FoursquareSource:
         ``date_created`` is when the place entered Foursquare, which the age resolver
         combines with other evidence.
         """
-        query = self.build_query(countries)
+        self._scan()  # finds the release, which connect() needs to set up access
         con = self.connect()
         self.check_columns(con)
-        cursor = con.execute(query, {"countries": sorted(countries)})
-        columns = [d[0] for d in cursor.description or []]
-        while rows := cursor.fetchmany(FETCH_BATCH):
-            for values in rows:
-                yield self.to_record(dict(zip(columns, values, strict=True)))
+        # One box per query: files can be skipped for a single box, not for many joined by OR.
+        for part in country_batches(self.bbox, countries):
+            cursor = con.execute(self.build_query(part), {"countries": part})
+            columns = [d[0] for d in cursor.description or []]
+            while rows := cursor.fetchmany(FETCH_BATCH):
+                for values in rows:
+                    yield self.to_record(dict(zip(columns, values, strict=True)))
 
     def to_record(self, row: Mapping[str, Any]) -> RawRecord:
         return RawRecord(

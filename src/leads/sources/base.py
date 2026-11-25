@@ -116,6 +116,16 @@ def write_raw(
     return total, files
 
 
+def country_batches(
+    boxes: Mapping[str, Sequence[float]], countries: Collection[str]
+) -> list[list[str]]:
+    """Countries to ask for together: one by one where each has a box, else all at once."""
+    ordered = sorted(countries)
+    if ordered and all(c in boxes for c in ordered):
+        return [[c] for c in ordered]
+    return [ordered]
+
+
 def bbox_sql(
     boxes: Mapping[str, Sequence[float]], countries: Collection[str], lon: str, lat: str
 ) -> str:
