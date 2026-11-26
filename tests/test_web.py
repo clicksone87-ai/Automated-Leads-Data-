@@ -136,3 +136,67 @@ def test_opt_out_is_stored_once(client: TestClient) -> None:
     with db.session_scope() as s:
         assert s.query(Suppression).count() == 1
     assert client.get("/api/leads/a").json()["suppressed"] is True
+
+
+def _whatsapp_leads() -> None:
+    from datetime import UTC, datetime
+
+    from leads.models import Outreach
+
+    with db.session_scope() as s:
+        s.add_all(
+            [
+                Lead(lead_id="w1", name="Replied Cafe", country_iso2="GB",
+                     email="w1@example.com", phone_e164="+447700900123", phone_type="mobile"),
+                Lead(lead_id="w2", name="Shows WhatsApp", country_iso2="GB",
+                     whatsapp_number="+447700900456"),
+                Lead(lead_id="w3", name="Landline Only", country_iso2="GB",
+                     email="w3@example.com", phone_e164="+442079460018", phone_type="landline"),
+            ]
+        )  # fmt: skip
+        s.flush()
+        now = datetime.now(UTC)
+        s.add_all(
+            [
+                Outreach(lead_id="w1", stage="replied", recipient="w1@example.com",
+                         drafted_at=now, sent_at=now, replied_at=now),
+                Outreach(lead_id="w3", stage="replied", recipient="w3@example.com",
+                         drafted_at=now, sent_at=now, replied_at=now),
+            ]
+        )  # fmt: skip
+
+
+def test_whatsapp_only_after_reply_or_public_number(client: TestClient) -> None:
+    _whatsapp_leads()
+    cold = client.get("/api/leads/a/whatsapp").json()
+    assert cold["blockers"] and "replied" in cold["blockers"][0]
+
+    replied = client.get("/api/leads/w1/whatsapp").json()
+    assert replied["blockers"] == []
+    assert replied["number"] == "+447700900123"
+    assert "Thanks for getting back to me about Replied Cafe" in replied["text"]
+
+    public = client.get("/api/leads/w2/whatsapp").json()
+    assert public["blockers"] == []
+    assert "welcome messages on WhatsApp" in public["text"]
+
+    landline = client.get("/api/leads/w3/whatsapp").json()
+    assert landline["blockers"] == ["There is no mobile or WhatsApp number for this business."]
+
+
+def test_whatsapp_opened_is_recorded_once(client: TestClient) -> None:
+    _whatsapp_leads()
+    headers = {"X-Requested-With": "leads"}
+    first = client.post("/api/leads/w2/whatsapp", headers=headers)
+    assert first.status_code == 201
+    again = client.post("/api/leads/w2/whatsapp", headers=headers)
+    assert again.json()["opened_at"] == first.json()["opened_at"]
+    assert client.get("/api/leads/w2/whatsapp").json()["opened_at"] is not None
+    assert client.post("/api/leads/a/whatsapp", headers=headers).status_code == 409
+
+
+def test_whatsapp_respects_opt_out(client: TestClient) -> None:
+    _whatsapp_leads()
+    with db.session_scope() as s:
+        s.add(Suppression(email_or_phone="+447700900456", reason="manual"))
+    assert "This contact has opted out." in client.get("/api/leads/w2/whatsapp").json()["blockers"]

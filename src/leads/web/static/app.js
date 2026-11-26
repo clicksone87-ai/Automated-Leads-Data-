@@ -229,7 +229,8 @@ function openLead(id) {
     return [
       panelHead(d.name, [opts.categories[d.category_group], d.city, country(d.country_iso2)].filter(Boolean).join(', ')),
       d.suppressed && h('div', { class: 'notice' }, 'This contact has opted out. Do not contact them.'),
-      d.email && h('button', { class: 'btn primary', onclick: () => openEmail(d.lead_id, d.name) }, 'Send email'),
+      h('p', {}, d.email && h('button', { class: 'btn primary', onclick: () => openEmail(d.lead_id, d.name) }, 'Send email'), ' ',
+        (d.whatsapp_number || d.phone_e164) && h('button', { class: 'btn', onclick: () => openWhatsApp(d.lead_id, d.name) }, 'WhatsApp')),
       h('h2', {}, 'Contact'), h('dl', {},
         row('Email', d.email || 'None found'), row('Phone', d.phone_e164 || 'None found'),
         row('WhatsApp', d.whatsapp_number), row('Address', [d.address, d.city, d.region, d.postcode].filter(Boolean).join(', ')),
@@ -238,7 +239,7 @@ function openLead(id) {
       h('h2', {}, 'Business'), h('dl', {}, row('Category', d.category),
         row('Contact note', d.lawful_basis_note), row('Opened', d.created_date ? day(d.created_date) + ' (from ' + src(d.age_source) + ')' : 'Unknown')),
       h('h2', {}, 'Where this came from'), h('dl', {}, d.source_records.map((s) => row(src(s.source), 'Record ' + s.source_record_id + ', collected ' + day(s.fetched_at)))),
-      d.outreach.length > 0 && [h('h2', { class: 'bar' }, 'Outreach'), h('dl', {}, d.outreach.map((o) => row(o.stage, 'Drafted ' + when(o.drafted_at) + (o.sent_at ? ', sent ' + when(o.sent_at) : ''))))],
+      d.outreach.length > 0 && [h('h2', { class: 'bar' }, 'Outreach'), h('dl', {}, d.outreach.map((o) => o.channel === 'whatsapp' ? row('WhatsApp', 'Opened ' + when(o.drafted_at)) : row(o.stage, 'Drafted ' + when(o.drafted_at) + (o.sent_at ? ', sent ' + when(o.sent_at) : ''))))],
     ].flat(2).filter(Boolean);
   });
 }
@@ -283,13 +284,40 @@ function openEmail(id, name) {
   });
 }
 
+function openWhatsApp(id, name) {
+  const path = 'leads/' + encodeURIComponent(id) + '/whatsapp';
+  return loadPanel('WhatsApp ' + name, path, (d) => {
+    const view = h('button', { class: 'btn', onclick: () => openLead(id) }, 'View lead');
+    const top = [panelHead('WhatsApp ' + name, d.number || 'No WhatsApp number')];
+    if (d.blockers.length) return [...top, h('div', { class: 'notice' }, 'This lead cannot get a WhatsApp message:', h('ul', {}, d.blockers.map((b) => h('li', {}, b)))), view];
+    const msg = h('p', { role: 'status', class: 'muted' });
+    const body = h('textarea', { id: 'wa-body', rows: 10, dir: 'auto' });
+    body.value = d.text;
+    const digits = d.number.replace(/\D/g, '');
+    const link = h('a', { class: 'btn primary', target: '_blank', rel: 'noopener noreferrer' }, 'Open in WhatsApp');
+    const update = () => { link.href = 'https://wa.me/' + digits + '?text=' + encodeURIComponent(body.value); };
+    body.addEventListener('input', update); update();
+    link.addEventListener('click', () => {
+      post(path).then(() => { msg.textContent = 'Saved as messaged. Press Send in WhatsApp yourself.'; }).catch((e) => { msg.textContent = e.message; msg.className = 'err'; });
+    });
+    return [...top,
+      d.opened_at && h('div', { class: 'notice' }, 'WhatsApp was already opened for this lead on ' + when(d.opened_at) + '.'),
+      d.warnings.length > 0 && h('div', { class: 'notice' }, 'Before sending:', h('ul', {}, d.warnings.map((w) => h('li', {}, w)))),
+      h('p', {}, d.replied ? 'This business replied to your email.' : 'This business shows a WhatsApp number on its own pages.'),
+      d.language && h('p', {}, 'Language: ', chip(d.language, 'blue')),
+      h('label', { class: 'f' }, 'Message', body),
+      h('p', { class: 'muted' }, 'This opens WhatsApp with the message filled in. Nothing is sent until you press Send there. If they ask you to stop, add the number on the Opt-outs page.'),
+      msg, h('p', {}, link, ' ', view)].filter(Boolean);
+  });
+}
+
 // ---- other pages
 async function draftsPage() {
   const rows = await api('outreach');
   return [...head('Email drafts', 'Drafts waiting in Gmail, and what happened after you sent them.'),
     rows.length ? table([
       { label: 'Business', get: (r) => h('button', { class: 'linkbtn strong', onclick: () => openLead(r.lead_id) }, r.name) },
-      { label: 'To', get: (r) => r.recipient || r.email || '—' }, { label: 'Stage', get: (r) => chip({ first: 'First email', followup: 'Follow-up', replied: 'Replied', opted_out: 'Opted out' }[r.stage] || r.stage, { first: 'blue', followup: 'violet', replied: 'green' }[r.stage]) },
+      { label: 'To', get: (r) => r.recipient || r.email || '—' }, { label: 'Channel', get: (r) => r.channel === 'whatsapp' ? chip('WhatsApp', 'green') : 'Email' }, { label: 'Stage', get: (r) => chip({ first: 'First email', followup: 'Follow-up', replied: 'Replied', opted_out: 'Opted out' }[r.stage] || r.stage, { first: 'blue', followup: 'violet', replied: 'green' }[r.stage]) },
       { label: 'Drafted', get: (r) => when(r.drafted_at) || '—' }, { label: 'Sent', get: (r) => when(r.sent_at) || '—' },
       { label: 'Replied', get: (r) => when(r.replied_at) || '—' }, { label: 'Follow-up due', get: (r) => day(r.followup_due_at) || '—' },
     ], rows) : empty('No drafts yet. They appear here once Gmail is connected and the first emails are prepared.')];

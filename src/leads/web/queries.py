@@ -242,7 +242,7 @@ def overview(session: Session) -> dict[str, Any]:
         "outreach": rows(
             "SELECT count(drafted_at) AS drafted, count(sent_at) AS sent, "
             "count(replied_at) AS replied, count(*) FILTER (WHERE bounced) AS bounced "
-            "FROM outreach"
+            "FROM outreach WHERE channel = 'email'"
         )[0],
         "opted_out": rows("SELECT count(*) AS n FROM suppression")[0]["n"],
         "sources": rows(

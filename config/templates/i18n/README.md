@@ -1,7 +1,7 @@
 # Translated templates
 
 One folder per language: `fr, de, es, it, pt, nl, pl, ar, ru, tr`. Each folder can hold
-any of `email_first.txt`, `email_followup.txt` and `whatsapp_after_reply.txt` with the same
+any of `email_first.txt`, `email_followup.txt`, `whatsapp_first.txt` and `whatsapp_after_reply.txt` with the same
 `{placeholders}` as the English templates in `config/templates/`.
 
 If a translated file is missing, `leads.outreach.templates` falls back to English, so a

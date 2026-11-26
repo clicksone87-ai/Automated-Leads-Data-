@@ -21,7 +21,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from leads.db import session_scope
 from leads.export import ATTRIBUTION_LINES, EXPORT_COLUMNS
 from leads.models import Lead, Suppression
-from leads.outreach import drafts
+from leads.outreach import drafts, whatsapp
 from leads.outreach.ai import AiError
 from leads.outreach.phrases import LANGUAGES, lead_language
 from leads.settings import Settings, get_settings, load_categories
@@ -212,6 +212,37 @@ def save_draft(lead_id: str, text: DraftText) -> dict[str, str]:
         raise HTTPException(409, str(exc)) from exc
     queries.clear_cache()
     return {"draft_id": draft_id}
+
+
+def _lead_or_404(db: Session, lead_id: str) -> Lead:
+    lead_row = db.get(Lead, lead_id)
+    if lead_row is None:
+        raise HTTPException(404, "Lead not found")
+    return lead_row
+
+
+@app.get("/api/leads/{lead_id}/whatsapp")
+def whatsapp_panel(lead_id: str, db: DB) -> dict[str, Any]:
+    current = whatsapp.state(db, _lead_or_404(db, lead_id), get_settings())
+    return {
+        "number": current.number,
+        "text": current.text,
+        "language": LANGUAGES[current.language].name if current.language in LANGUAGES else None,
+        "replied": current.replied,
+        "opened_at": current.opened_at,
+        "blockers": current.blockers,
+        "warnings": current.warnings,
+    }
+
+
+@app.post("/api/leads/{lead_id}/whatsapp", status_code=201)
+def whatsapp_opened(lead_id: str, db: DB) -> dict[str, Any]:
+    try:
+        opened = whatsapp.record_opened(db, _lead_or_404(db, lead_id), get_settings())
+    except whatsapp.WhatsAppError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    queries.clear_cache()
+    return {"opened_at": opened}
 
 
 @app.get("/api/outreach")

@@ -1,0 +1,1 @@
+Hi, this is {sender_name} from {company}. We came across {business_name} and saw that you welcome messages on WhatsApp. We build websites for local businesses, and I'd be happy to make a free one-page mock-up for {business_name}, with no cost and no obligation. If you'd prefer I don't message you on WhatsApp, just say so and I'll stop.
