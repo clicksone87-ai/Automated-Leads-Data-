@@ -90,6 +90,7 @@ module = [
     "google.oauth2.*",
     "google.auth.*",
     "selectolax.*",
+    "playwright.*",
 ]
 ignore_missing_imports = true
 
