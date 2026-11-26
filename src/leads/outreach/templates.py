@@ -46,73 +46,116 @@ WEBSITE_LINES: dict[str, dict[str, str]] = {
         WebsiteStatus.NONE: "ليس لديكم موقع إلكتروني بعد",
         WebsiteStatus.BROKEN: "موقعكم الإلكتروني على {domain} لا يعمل حاليًا",
         WebsiteStatus.PARKED: "موقعكم الإلكتروني على {domain} لا يعمل حاليًا",
-        WebsiteStatus.REDIRECT_SOCIAL: "تعتمدون على صفحة في وسائل التواصل الاجتماعي بدلًا من موقع خاص بكم",
-        WebsiteStatus.WORKING: "لديكم موقع إلكتروني على {domain} ويمكن أن يجذب لكم المزيد من الاستفسارات",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "تعتمدون على صفحة في وسائل التواصل الاجتماعي بدلًا من موقع خاص بكم"
+        ),
+        WebsiteStatus.WORKING: (
+            "لديكم موقع إلكتروني على {domain} ويمكن أن يجذب لكم المزيد من الاستفسارات"
+        ),
     },
     "fr": {
         WebsiteStatus.NONE: "n'avez pas encore de site web",
         WebsiteStatus.BROKEN: "votre site web sur {domain} ne se charge pas en ce moment",
         WebsiteStatus.PARKED: "votre site web sur {domain} ne se charge pas en ce moment",
-        WebsiteStatus.REDIRECT_SOCIAL: "utilisez une page sur les réseaux sociaux plutôt qu'un site qui vous appartient",
-        WebsiteStatus.WORKING: "avez déjà un site web sur {domain}, qui pourrait vous apporter plus de demandes",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "utilisez une page sur les réseaux sociaux plutôt qu'un site qui vous appartient"
+        ),
+        WebsiteStatus.WORKING: (
+            "avez déjà un site web sur {domain}, qui pourrait vous apporter plus de demandes"
+        ),
     },
     "de": {
         WebsiteStatus.NONE: "noch keine eigene Website haben",
         WebsiteStatus.BROKEN: "Ihre Website unter {domain} gerade nicht erreichbar ist",
         WebsiteStatus.PARKED: "Ihre Website unter {domain} gerade nicht erreichbar ist",
-        WebsiteStatus.REDIRECT_SOCIAL: "statt einer eigenen Website nur eine Social-Media-Seite nutzen",
-        WebsiteStatus.WORKING: "bereits eine Website unter {domain} haben, die noch mehr Anfragen bringen könnte",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "statt einer eigenen Website nur eine Social-Media-Seite nutzen"
+        ),
+        WebsiteStatus.WORKING: (
+            "bereits eine Website unter {domain} haben, die noch mehr Anfragen bringen könnte"
+        ),
     },
     "es": {
         WebsiteStatus.NONE: "aún no tienen un sitio web",
         WebsiteStatus.BROKEN: "su sitio web en {domain} no está cargando ahora mismo",
         WebsiteStatus.PARKED: "su sitio web en {domain} no está cargando ahora mismo",
-        WebsiteStatus.REDIRECT_SOCIAL: "utilizan una página en redes sociales en lugar de un sitio web propio",
-        WebsiteStatus.WORKING: "ya tienen un sitio web en {domain} que podría generar más consultas",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "utilizan una página en redes sociales en lugar de un sitio web propio"
+        ),
+        WebsiteStatus.WORKING: (
+            "ya tienen un sitio web en {domain} que podría generar más consultas"
+        ),
     },
     "it": {
         WebsiteStatus.NONE: "non avete ancora un sito web",
         WebsiteStatus.BROKEN: "il vostro sito web su {domain} non si carica al momento",
         WebsiteStatus.PARKED: "il vostro sito web su {domain} non si carica al momento",
-        WebsiteStatus.REDIRECT_SOCIAL: "utilizzate una pagina sui social media invece di un vostro sito web",
-        WebsiteStatus.WORKING: "avete già un sito web su {domain} che potrebbe portarvi più richieste",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "utilizzate una pagina sui social media invece di un vostro sito web"
+        ),
+        WebsiteStatus.WORKING: (
+            "avete già un sito web su {domain} che potrebbe portarvi più richieste"
+        ),
     },
     "pt": {
         WebsiteStatus.NONE: "ainda não têm um site",
         WebsiteStatus.BROKEN: "o vosso site em {domain} não está a carregar de momento",
         WebsiteStatus.PARKED: "o vosso site em {domain} não está a carregar de momento",
-        WebsiteStatus.REDIRECT_SOCIAL: "utilizam uma página nas redes sociais em vez de um site próprio",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "utilizam uma página nas redes sociais em vez de um site próprio"
+        ),
         WebsiteStatus.WORKING: "já têm um site em {domain} que poderia gerar mais contactos",
     },
     "nl": {
         WebsiteStatus.NONE: "nog geen eigen website hebben",
         WebsiteStatus.BROKEN: "uw website op {domain} op dit moment niet laadt",
         WebsiteStatus.PARKED: "uw website op {domain} op dit moment niet laadt",
-        WebsiteStatus.REDIRECT_SOCIAL: "een social-mediapagina gebruikt in plaats van een eigen website",
-        WebsiteStatus.WORKING: "al een website heeft op {domain} die nog meer aanvragen zou kunnen opleveren",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "een social-mediapagina gebruikt in plaats van een eigen website"
+        ),
+        WebsiteStatus.WORKING: (
+            "al een website heeft op {domain} die nog meer aanvragen zou kunnen opleveren"
+        ),
     },
     "pl": {
         WebsiteStatus.NONE: "nie mają jeszcze własnej strony internetowej",
-        WebsiteStatus.BROKEN: "Państwa strona internetowa pod adresem {domain} aktualnie nie działa",
-        WebsiteStatus.PARKED: "Państwa strona internetowa pod adresem {domain} aktualnie nie działa",
-        WebsiteStatus.REDIRECT_SOCIAL: "korzystają z profilu w mediach społecznościowych zamiast własnej strony",
-        WebsiteStatus.WORKING: "mają już stronę internetową pod adresem {domain}, która mogłaby przynosić więcej zapytań",
+        WebsiteStatus.BROKEN: (
+            "Państwa strona internetowa pod adresem {domain} aktualnie nie działa"
+        ),
+        WebsiteStatus.PARKED: (
+            "Państwa strona internetowa pod adresem {domain} aktualnie nie działa"
+        ),
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "korzystają z profilu w mediach społecznościowych zamiast własnej strony"
+        ),
+        WebsiteStatus.WORKING: (
+            "mają już stronę internetową pod adresem {domain},"
+            " która mogłaby przynosić więcej zapytań"
+        ),
     },
     "ru": {
         WebsiteStatus.NONE: "у вас ещё нет собственного сайта",
         WebsiteStatus.BROKEN: "ваш сайт на {domain} сейчас не загружается",
         WebsiteStatus.PARKED: "ваш сайт на {domain} сейчас не загружается",
-        WebsiteStatus.REDIRECT_SOCIAL: "используете страницу в социальных сетях вместо собственного сайта",
-        WebsiteStatus.WORKING: "у вас уже есть сайт на {domain}, который мог бы приносить больше обращений",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "используете страницу в социальных сетях вместо собственного сайта"
+        ),
+        WebsiteStatus.WORKING: (
+            "у вас уже есть сайт на {domain}, который мог бы приносить больше обращений"
+        ),
     },
     "tr": {
         WebsiteStatus.NONE: "henüz bir web siteniz bulunmuyor",
         WebsiteStatus.BROKEN: "{domain} adresindeki web siteniz şu an açılmıyor",
         WebsiteStatus.PARKED: "{domain} adresindeki web siteniz şu an açılmıyor",
-        WebsiteStatus.REDIRECT_SOCIAL: "kendi web siteniz yerine bir sosyal medya sayfası kullanıyorsunuz",
-        WebsiteStatus.WORKING: "{domain} adresinde zaten bir web siteniz var ve daha fazla talep getirebilir",
+        WebsiteStatus.REDIRECT_SOCIAL: (
+            "kendi web siteniz yerine bir sosyal medya sayfası kullanıyorsunuz"
+        ),
+        WebsiteStatus.WORKING: (
+            "{domain} adresinde zaten bir web siteniz var ve daha fazla talep getirebilir"
+        ),
     },
-}
+}  # fmt: skip
 
 
 @dataclass(frozen=True, slots=True)
