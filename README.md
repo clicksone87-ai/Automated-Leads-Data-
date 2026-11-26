@@ -22,6 +22,8 @@ API is ever called.
 | Gmail sync | Sent / replied / bounced / opt-out detection, one follow-up draft after 6 days | every 30 min |
 | Backup | `pg_dump` to `./backups` (03:00) + verification flow (03:30) | daily |
 
+To run it on an always-on server, follow [docs/server-setup.md](docs/server-setup.md).
+
 Everything runs locally in Docker Compose: PostgreSQL 16 + PostGIS, the Prefect 3 server,
 a worker that serves the scheduled flows, a nightly backup container, and an optional
 Metabase dashboard.
@@ -118,10 +120,10 @@ Each item maps to `TODO(build step N)` markers in the code.
 - [x] **1. Project setup**: repo, uv, Docker Compose, settings, DB schema + Alembic, CI (ruff, mypy, pytest)
 - [ ] **2. Overture + Foursquare loaders** for 2–3 test countries, normalise, country filter (`sources/overture.py`, `sources/foursquare.py`, `pipeline/__init__.py`) — Overture done (tested on MT, IE); Foursquare tested on MT
 - [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`) — loaders written; UK (Leeds–Manchester) tested end to end, Canada file loaded, Norway, France and Australia not yet loaded
-- [x] **4. Website checker + email/WhatsApp extractor** (`enrich/website.py`, `enrich/check.py`); a status is set only on proof, anything unclear stays empty
+- [x] **4. Website checker + email/WhatsApp extractor** (`enrich/website.py`, `enrich/check.py`); a status is set only on proof, anything unclear stays empty. JavaScript-only pages are opened in headless Chromium (`enrich/browser.py`). Leads without a website are tried at their email domain, then at the .com of an Instagram/X/TikTok/YouTube/Pinterest profile name, kept only if that site links back to the profile or shows the lead's phone or email. Facebook and Instagram pages themselves are never fetched: their robots.txt forbids it
 - [x] **5. Dedupe/match + CSV export + dashboard**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
 - [x] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)
-- [ ] **7. AI emails, Gmail drafts, labels, Gmail sync, follow-ups, opt-outs, sanctions check: done for English-speaking countries. Left: other languages. The Google Sheet view is replaced by the dashboard** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
+- [ ] **7. AI emails, Gmail drafts, labels, Gmail sync, follow-ups, opt-outs, sanctions check: done for English-speaking countries. WhatsApp from the dashboard after a reply, or when the business shows a WhatsApp number: opens wa.me with the text filled in, the person presses Send (`outreach/whatsapp.py`). Left: other languages. The Google Sheet view is replaced by the dashboard** (`outreach/*`, `export/sheets.py`, `pipeline/sanctions.py`, `config/templates/i18n/`)
 - [ ] **8. Scale to all countries**, more registries. OpenStreetMap done (`sources/osm.py`); add each new country's extract to `EXTRACTS`
 - [ ] **9. Licensed directory feeds** (optional, `sources/directories.py`)
 

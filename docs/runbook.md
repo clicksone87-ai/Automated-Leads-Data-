@@ -1,5 +1,7 @@
 # Runbook
 
+For moving to an always-on server, see [server-setup.md](server-setup.md).
+
 ## 1. First-time setup
 
 1. `cp .env.example .env` and set a real `POSTGRES_PASSWORD` (use the same password in
@@ -100,6 +102,13 @@ debugging.
 ## 7. Compliance notes
 
 - Drafts only. The code never calls `messages.send` and never sends WhatsApp messages.
+- WhatsApp: the dashboard button appears for leads that replied to an email or show a
+  WhatsApp number themselves. It opens wa.me with the text filled in; the person presses
+  Send in their own WhatsApp Business app. If someone asks to stop, add the number on the
+  Opt-outs page.
+- Pages that need JavaScript are opened in headless Chromium only after a normal visit
+  found no readable text. It loads no images, media or fonts and reaches public
+  addresses only.
 - WhatsApp numbers come only from the business's own public pages, with an evidence URL.
 - Opt-outs and hard bounces are permanent (`suppression`). Remove a row by hand only
   if the person asks to be contacted again.
