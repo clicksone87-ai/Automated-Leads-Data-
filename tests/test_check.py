@@ -8,7 +8,7 @@ import httpx
 import pytest
 
 from leads.enrich import website as w
-from leads.enrich.check import changes, email_site, usable_email
+from leads.enrich.check import changes, email_site, social_site, usable_email
 from leads.enrich.safe_http import PublicOnlyBackend, is_public
 from leads.enrich.website import Contacts, WebsiteCheck, WhatsAppHit, check_website
 from leads.models import Lead, WebsiteStatus
@@ -168,3 +168,112 @@ def test_contacts_are_taken_only_from_a_site_of_its_own() -> None:
 def test_no_website_listed_is_stored_as_none() -> None:
     check = WebsiteCheck(WebsiteStatus.NONE, "no website listed")
     assert changes(lead(), check, guessed=True, shared=False)["website_status"] == "none"
+
+
+def test_social_site_from_profile_name() -> None:
+    assert social_site({"instagram": "https://www.instagram.com/acme.garage/"}) == (
+        "https://acmegarage.com"
+    )
+    assert social_site({"x": "https://twitter.com/AcmeGarage"}) == "https://acmegarage.com"
+    assert social_site({"youtube": "https://www.youtube.com/@acme_garage"}) == (
+        "https://acmegarage.com"
+    )
+    assert social_site({"facebook": "https://www.facebook.com/539574029505304"}) is None
+    assert social_site({"instagram": "https://www.instagram.com/explore/"}) is None
+    assert social_site({"instagram": "https://www.instagram.com/p/"}) is None
+    assert social_site(None) is None
+
+
+def test_social_guess_needs_a_link_back_or_same_contact() -> None:
+    own = lead(
+        socials={"instagram": "https://instagram.com/acme.garage"}, phone_e164="+447700900123"
+    )
+    site = WebsiteCheck(
+        WebsiteStatus.WORKING, "ok", final_url="https://acmegarage.com/", text="Acme Garage Leeds"
+    )
+    # Same name is not enough: anyone can own the .com of a profile name.
+    values = changes(own, site, guessed=True, shared=False, via="social")
+    assert values["website_status"] == "none" and "website" not in values
+
+    site.contacts = Contacts(socials={"instagram": "https://www.instagram.com/acme.garage/"})
+    values = changes(own, site, guessed=True, shared=False, via="social")
+    assert values["domain"] == "acmegarage.com"
+    assert values["website_reason"] == "found through a social profile name"
+
+    by_phone = WebsiteCheck(
+        WebsiteStatus.WORKING, "ok", final_url="https://acmegarage.com/", text="Call 07700 900123"
+    )
+    assert changes(own, by_phone, guessed=True, shared=False, via="social")["website_status"] == (
+        "working"
+    )
+
+    broken = WebsiteCheck(WebsiteStatus.BROKEN, "http 500")
+    assert changes(own, broken, guessed=True, shared=False, via="social")["website_status"] == (
+        "none"
+    )
+
+
+class FakeBrowser:
+    def __init__(self, html: str | None) -> None:
+        self.html = html
+        self.visited: list[str] = []
+
+    async def render(self, url: str) -> dict[str, Any] | None:
+        self.visited.append(url)
+        if self.html is None:
+            return None
+        return {"final_url": url, "status_code": 200, "html": self.html}
+
+
+def run_with_browser(
+    html: str, browser: FakeBrowser, monkeypatch: pytest.MonkeyPatch
+) -> WebsiteCheck:
+    async def fake_dns(_: str) -> tuple[bool | None, tuple[str, ...]]:
+        return True, ()
+
+    monkeypatch.setattr(w, "resolve_dns", fake_dns)
+
+    async def go() -> WebsiteCheck:
+        transport = httpx.MockTransport(lambda r: respond(200, html))
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await check_website(
+                "https://acme.ie",
+                country_iso2="GB",
+                client=client,
+                cfg=CFG,
+                browser=browser,  # type: ignore[arg-type]
+            )
+
+    return asyncio.run(go())
+
+
+SCRIPT_ONLY = (
+    "<html><head><script src='/app.js'></script></head><body><div id=root></div></body></html>"
+)
+RENDERED = (
+    "<html><head><title>Acme</title></head><body><h1>Acme Garage</h1>"
+    "<p>Car repairs in Dublin since 2019. Call us or email hello@acme.ie for a quote today, "
+    "we are open six days a week.</p></body></html>"
+)
+
+
+def test_script_only_page_is_read_in_a_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    browser = FakeBrowser(RENDERED)
+    check = run_with_browser(SCRIPT_ONLY, browser, monkeypatch)
+    assert browser.visited == ["https://acme.ie"]
+    assert check.status == WebsiteStatus.WORKING
+    assert check.reason == "200 with content, in a browser"
+    assert "hello@acme.ie" in check.contacts.emails
+
+
+def test_browser_is_not_used_for_readable_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    browser = FakeBrowser(RENDERED)
+    assert run_with_browser(GOOD, browser, monkeypatch).status == WebsiteStatus.WORKING
+    assert browser.visited == []
+
+
+def test_page_the_browser_cannot_open_keeps_its_first_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    check = run_with_browser(SCRIPT_ONLY, FakeBrowser(None), monkeypatch)
+    assert check.status is None and check.reason == "200, content not readable"

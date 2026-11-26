@@ -8,6 +8,7 @@ import time
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit
 
 import structlog
 from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
@@ -39,16 +40,62 @@ def email_site(email: str | None) -> str | None:
     return normalise_website(domain)
 
 
-def belongs_to(lead: Lead, check: WebsiteCheck) -> bool:
-    """Whether a site found through an email domain shows this lead's name, phone or email."""
+# Profile links whose user name can also be a domain name ("instagram.com/acmecafe").
+_HANDLE = re.compile(
+    r"^https?://(?:www\.|m\.|mobile\.)?(?:instagram\.com|x\.com|twitter\.com|tiktok\.com"
+    r"|youtube\.com|pinterest\.com)/@?([a-z0-9._-]{4,40})/?(?:[?#].*)?$",
+    re.IGNORECASE,
+)
+_NOT_HANDLES = {
+    "explore", "share", "channel", "user", "watch", "intent", "home", "hashtag", "search",
+    "reel", "reels", "stories", "pages", "profile", "login", "accounts",
+}  # fmt: skip
+
+
+def social_site(socials: dict[str, Any] | None) -> str | None:
+    """Website named like a social profile (instagram.com/acme.cafe -> acmecafe.com).
+
+    Only a guess: :func:`changes` keeps it only if the site links back to that profile or
+    shows the lead's phone or email.
+    """
+    for url in (socials or {}).values():
+        match = _HANDLE.match(url) if isinstance(url, str) else None
+        if not match or match.group(1).lower() in _NOT_HANDLES:
+            continue
+        label = re.sub(r"[._]", "", match.group(1).lower()).strip("-")
+        if len(label) >= 4 and not label.isdigit():
+            return normalise_website(f"{label}.com")
+    return None
+
+
+def _profile(url: str) -> str:
+    """Comparable form of a profile link: host without www, path without slashes or @."""
+    parts = urlsplit(url.strip())
+    host = re.sub(r"^(www|m|mobile)\.", "", parts.hostname or "").replace("twitter.com", "x.com")
+    return host + "/" + parts.path.strip("/").lstrip("@").lower()
+
+
+def links_back(lead: Lead, check: WebsiteCheck) -> bool:
+    """Whether the site links to one of the lead's own social profiles."""
+    own = {_profile(u) for u in (lead.socials or {}).values() if isinstance(u, str)}
+    return any(_profile(u) in own for u in check.contacts.socials.values())
+
+
+def shows_contact(lead: Lead, check: WebsiteCheck) -> bool:
+    """Whether the site shows this lead's email or phone number."""
     text = check.text.lower()
     if lead.email and (lead.email in check.contacts.emails or lead.email in text):
         return True
     digits = re.sub(r"\D", "", lead.phone_e164 or "")
-    if len(digits) >= 9 and digits[-9:] in re.sub(r"\D", "", text):
+    return len(digits) >= 9 and digits[-9:] in re.sub(r"\D", "", text)
+
+
+def belongs_to(lead: Lead, check: WebsiteCheck) -> bool:
+    """Whether a site found through an email domain shows this lead's name, phone or email."""
+    if shows_contact(lead, check):
         return True
     name = re.sub(r"\W+", " ", lead.name.lower()).strip()
-    return len(name) >= 6 and name in re.sub(r"\W+", " ", text)
+    return len(name) >= 6 and name in re.sub(r"\W+", " ", check.text.lower())
 
 
 def usable_email(check: WebsiteCheck) -> str | None:
@@ -83,8 +130,14 @@ def pending(limit: int | None, *, recheck: bool, cutoff: datetime) -> Select[Any
     return stmt.limit(limit)
 
 
-def changes(lead: Lead, check: WebsiteCheck, *, guessed: bool, shared: bool) -> dict[str, Any]:
-    """Column values to store for one lead."""
+def changes(
+    lead: Lead, check: WebsiteCheck, *, guessed: bool, shared: bool, via: str = "email"
+) -> dict[str, Any]:
+    """Column values to store for one lead.
+
+    ``via`` says where a guessed site came from: ``email`` (its domain) or ``social``
+    (a profile user name).
+    """
     values: dict[str, Any] = {
         "website_status": check.status,
         "website_reason": check.reason,
@@ -94,14 +147,27 @@ def changes(lead: Lead, check: WebsiteCheck, *, guessed: bool, shared: bool) -> 
         return values
     if guessed:
         if check.status == WebsiteStatus.PARKED or check.reason == FetchError.DNS:
-            # The lead lists no website and its email domain has none either.
+            # The lead lists no website and the guessed domain has none either.
             values["website_status"] = WebsiteStatus.NONE
-            values["website_reason"] = f"none listed; email domain: {check.reason}"
+            values["website_reason"] = (
+                f"none listed; email domain: {check.reason}"
+                if via == "email"
+                else "no website listed"
+            )
             return values
         if check.status != WebsiteStatus.WORKING:
-            values["website_status"] = None
+            # A failing .com of a profile name says nothing about this business.
+            values["website_status"] = None if via == "email" else WebsiteStatus.NONE
+            if via == "social":
+                values["website_reason"] = "no website listed"
             return values
-        if not belongs_to(lead, check):
+        # A name match is enough for the business's own email domain, but anyone can own
+        # the .com of a profile name, so that needs a link back or the same contact details.
+        if via == "social" and not (links_back(lead, check) or shows_contact(lead, check)):
+            values["website_status"] = WebsiteStatus.NONE
+            values["website_reason"] = "no website listed"
+            return values
+        if via == "email" and not belongs_to(lead, check):
             values["website_status"] = None
             values["website_reason"] = "email domain has a site, not clearly this business"
             return values
@@ -111,7 +177,11 @@ def changes(lead: Lead, check: WebsiteCheck, *, guessed: bool, shared: bool) -> 
             return values
         values["website"] = normalise_website(site)
         values["domain"] = registered_domain(host_of(site))
-        values["website_reason"] = "found through the email address"
+        values["website_reason"] = (
+            "found through the email address"
+            if via == "email"
+            else "found through a social profile name"
+        )
     if check.status != WebsiteStatus.WORKING or shared:
         return values
     if not lead.email and (email := usable_email(check)):
@@ -124,15 +194,23 @@ def changes(lead: Lead, check: WebsiteCheck, *, guessed: bool, shared: bool) -> 
     return values
 
 
-def _targets(leads: Sequence[Lead]) -> dict[str, str | None]:
-    """``{lead_id: url to visit}``; None when there is nothing to visit."""
-    return {
-        lead.lead_id: normalise_website(lead.website) or email_site(lead.email) for lead in leads
-    }
+def _targets(leads: Sequence[Lead]) -> dict[str, tuple[str | None, str]]:
+    """``{lead_id: (url to visit, where it came from)}``; url None when there is none."""
+    found: dict[str, tuple[str | None, str]] = {}
+    for lead in leads:
+        if listed := normalise_website(lead.website):
+            found[lead.lead_id] = (listed, "listed")
+        elif guess := email_site(lead.email):
+            found[lead.lead_id] = (guess, "email")
+        else:
+            found[lead.lead_id] = (social_site(lead.socials), "social")
+    return found
 
 
 def _save(
-    leads: Sequence[Lead], targets: dict[str, str | None], found: dict[str, WebsiteCheck]
+    leads: Sequence[Lead],
+    targets: dict[str, tuple[str | None, str]],
+    found: dict[str, WebsiteCheck],
 ) -> dict[str, int]:
     counts: dict[str, int] = {}
     with session_scope() as session:
@@ -147,9 +225,11 @@ def _save(
             )
         )
         for lead in leads:
-            url = targets[lead.lead_id]
+            url, via = targets[lead.lead_id]
             check = found[url] if url else WebsiteCheck(WebsiteStatus.NONE, "no website listed")
-            values = changes(lead, check, guessed=not lead.website, shared=lead.domain in crowded)
+            values = changes(
+                lead, check, guessed=not lead.website, shared=lead.domain in crowded, via=via
+            )
             # A lead changed since it was read (e.g. a new website) is left for the next run.
             session.execute(
                 update(Lead)
@@ -199,7 +279,9 @@ def check_pending(limit: int | None = None, *, recheck: bool = False) -> dict[st
             break
         targets = _targets(leads)
         items = {
-            url: (url, url, lead.country_iso2) for lead in leads if (url := targets[lead.lead_id])
+            url: (url, url, lead.country_iso2)
+            for lead in leads
+            if (url := targets[lead.lead_id][0])
         }
         found = asyncio.run(
             check_many(list(items.values()), cfg, settings.batch.website_concurrency)
