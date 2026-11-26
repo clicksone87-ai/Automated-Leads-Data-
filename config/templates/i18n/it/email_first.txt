@@ -1,0 +1,16 @@
+Subject: Un'idea rapida per {business_name}
+
+Gentile team di {business_name},
+
+abbiamo trovato {business_name} cercando attività {category} a {city} e abbiamo notato che {website_line}.
+
+La maggior parte dei clienti cerca online prima di chiamare, quindi un sito semplice con i vostri servizi, gli orari e un pulsante di chiamata diretta porta di solito più richieste. Realizziamo questi siti per le piccole imprese, generalmente pronti in {delivery_days} giorni, a partire da {price}.
+
+Vi farebbe comodo ricevere un'anteprima gratuita di una pagina per {business_name}? Nessun costo, nessun impegno.
+
+Cordiali saluti,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Se preferite non ricevere ulteriori comunicazioni, rispondete «no grazie» e non vi scriveremo più.

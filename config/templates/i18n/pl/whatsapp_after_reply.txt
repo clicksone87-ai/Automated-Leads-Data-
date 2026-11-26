@@ -1,0 +1,1 @@
+Dzień dobry, z tej strony {sender_name} z {company}. Dziękuję za odpowiedź w sprawie {business_name}. Oto pomysł na bezpłatny projekt Państwa strony: {link}. Chętnie odpowiem tutaj na pytania. Jeśli wolą Państwo nie otrzymywać ode mnie wiadomości na WhatsAppie, wystarczy dać znać.

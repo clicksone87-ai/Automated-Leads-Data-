@@ -873,6 +873,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "rapidfuzz" },
     { name = "selectolax" },
+    { name = "sentry-sdk" },
     { name = "sqlalchemy" },
     { name = "structlog" },
     { name = "tldextract" },
@@ -916,6 +917,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rapidfuzz", specifier = ">=3.9" },
     { name = "selectolax", specifier = ">=0.3.21" },
+    { name = "sentry-sdk", specifier = ">=2.0" },
     { name = "sqlalchemy", specifier = ">=2.0.30" },
     { name = "structlog", specifier = ">=24.4" },
     { name = "tldextract", specifier = ">=5.1" },
@@ -1914,6 +1916,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ec/a0/3d3f51a1304c0e8c93e06a23308f566f2d52d62f92dac903b85ef79dea6f/semver-3.1.2.tar.gz", hash = "sha256:bea193552413194252d33ff26ce0962b76669bd1c6fb17e8e203ac37f072feaf", size = 293659, upload-time = "2026-11-15T17:01:42.931Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/60/27e29790ff15ea0a485b8dc200d514328294f956e4abc3d43d88c0b5338d/semver-3.1.2-py3-none-any.whl", hash = "sha256:45d107c3fa880910441dfab9d555046cba2829a25feeadfe4a1566439635c510", size = 19100, upload-time = "2026-11-15T17:01:41.321Z" },
+]
+
+[[package]]
+name = "sentry-sdk"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5a/25/705f7ede684ad1221c46b82f4dc41946cd3ad674b129fe43e8bbf09dfedb/sentry_sdk-3.0.1.tar.gz", hash = "sha256:f70e3b7e789e2bfbb8d5614615037ab73303647aa7f782cc442452c6289696d7", size = 894494, upload-time = "2026-11-25T13:07:08.45Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/42/71f6dc2a1179b54526ca93b429e7311953c944eafb5424ce4ed065a32a25/sentry_sdk-3.0.1-py3-none-any.whl", hash = "sha256:feb0c131d2e497842e968f13363ef5f065f61d2517be005328766bc00e28e4b8", size = 477923, upload-time = "2026-11-25T13:07:06.904Z" },
 ]
 
 [[package]]

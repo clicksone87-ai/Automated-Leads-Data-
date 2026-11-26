@@ -126,14 +126,37 @@ def problems(reply: _Reply, facts: LeadFacts) -> list[str]:
         found.append(f"is {words} words long")
     if _short(facts.name) not in reply.subject.lower():
         found.append("does not have the business name in the subject")
-    for pattern in (_JUDGES, _JUDGES_AR):
+    phrases = LANGUAGES[facts.language]
+    patterns = [_JUDGES, _JUDGES_AR]
+    if phrases.judges:
+        patterns.append(re.compile(phrases.judges, re.IGNORECASE))
+    for pattern in patterns:
         if match := pattern.search(text):
             found.append(f"makes a claim about their website: {match.group(0)!r}")
-    if facts.language == "ar":
-        arabic, latin = len(_ARABIC.findall(text)), len(re.findall(r"[A-Za-z]", text))
-        if arabic < 5 * max(latin, 1):
-            found.append("is not written in Arabic")
+    if not written_in(text, facts.language):
+        found.append(f"is not written in {phrases.name.split(' (')[0]}")
     return found
+
+
+# Words common in English and rare in the other Latin-script languages written here.
+# "website" and "online" are left out: German and Dutch use them too.
+_ENGLISH = frozenset(
+    {"the", "and", "you", "your", "our", "with", "that", "this", "would", "which", "have",
+     "will", "can", "could", "customers", "help"}
+)  # fmt: skip
+_SCRIPTS = {"arabic": _ARABIC, "cyrillic": re.compile(r"[\u0400-\u04FF]")}
+
+
+def written_in(text: str, language: str) -> bool:
+    """Rough check that the AI kept to the asked language, not English."""
+    if language == "en":
+        return True
+    letters = _SCRIPTS.get(LANGUAGES[language].script)
+    if letters is not None:
+        return len(letters.findall(text)) >= 5 * max(len(re.findall(r"[A-Za-z]", text)), 1)
+    words = re.findall(r"[a-zà-ÿ']+", text.lower())
+    english = sum(w in _ENGLISH for w in words)
+    return english < 4 or english < 0.08 * len(words)
 
 
 def _short(name: str) -> str:

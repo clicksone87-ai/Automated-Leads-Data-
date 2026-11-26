@@ -1,0 +1,1 @@
+Olá, aqui é {sender_name}, de {company}. Obrigado pela resposta sobre {business_name}. Aqui está a ideia do protótipo gratuito do seu site: {link}. Fico à disposição para tirar dúvidas por aqui. Se preferir que eu não envie mensagens pelo WhatsApp, é só avisar que eu paro.

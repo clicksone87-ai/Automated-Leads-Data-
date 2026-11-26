@@ -53,6 +53,9 @@ def place_in_inbox(subject: str, text: str, service: Any = None) -> None:
 
 def report_failure(flow_name: str, reason: str, service: Any = None) -> bool:
     """Report a failed job once until it works again. Never raises."""
+    from leads import monitoring
+
+    monitoring.report(f"{flow_name} failed: {reason[:500]}")
     try:
         if failed_before(flow_name):
             return False

@@ -5,6 +5,7 @@ Attribution: "© OpenStreetMap contributors", ODbL (see leads.export.ATTRIBUTION
 
 from __future__ import annotations
 
+import json
 from collections.abc import Collection, Iterator, Mapping, Sequence
 from datetime import UTC, date
 from pathlib import Path
@@ -22,18 +23,46 @@ BASE_URL = "https://download.geofabrik.de"
 # Country outlines (public domain). Some extracts hold several countries.
 BORDERS_URL = "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip"
 
-GULF = "asia/gcc-states"
-ENGLAND = "europe/united-kingdom/england"
-EXTRACTS: dict[str, tuple[str, ...]] = {
-    "AE": (GULF,), "SA": (GULF,), "QA": (GULF,), "KW": (GULF,), "BH": (GULF,), "OM": (GULF,),
-    "IQ": ("asia/iraq",), "JO": ("asia/jordan",), "LB": ("asia/lebanon",),
-    "SY": ("asia/syria",), "YE": ("asia/yemen",), "PS": ("asia/israel-and-palestine",),
-    "MT": ("europe/malta",), "IE": ("europe/ireland-and-northern-ireland",),
-    "NO": ("europe/norway",),
-    # Leeds to Manchester, like country_bbox.
-    "GB": (f"{ENGLAND}/greater-manchester", f"{ENGLAND}/west-yorkshire",
-           f"{ENGLAND}/south-yorkshire"),
+# Geofabrik's list of extracts, with the country codes each one covers.
+INDEX_URL = f"{BASE_URL}/index-v1-nogeom.json"
+_PBF = "-latest.osm.pbf"
+# Extracts the index lists without a country code.
+EXTRA_EXTRACTS: dict[str, tuple[str, ...]] = {
+    "GG": ("europe/guernsey-jersey",), "JE": ("europe/guernsey-jersey",),
+    "IM": ("europe/isle-of-man",), "XK": ("europe/kosovo",),
+    "SA": ("asia/gcc-states",),  # in the GCC extract, but not among its codes
 }  # fmt: skip
+ENGLAND = "europe/united-kingdom/england"
+# Leeds to Manchester, used while country_bbox keeps its GB test box.
+GB_TEST = (
+    f"{ENGLAND}/greater-manchester",
+    f"{ENGLAND}/west-yorkshire",
+    f"{ENGLAND}/south-yorkshire",
+)
+
+
+def index_extracts(path: Path) -> dict[str, tuple[str, ...]]:
+    """``{ISO2: (region,)}`` from Geofabrik's index; a region is the URL path without suffix.
+
+    A country listed in several extracts gets the widest one (fewest path parts), which is
+    the whole country rather than one of its states.
+    """
+    found: dict[str, list[str]] = {}
+    for feature in json.loads(path.read_text(encoding="utf-8")).get("features", []):
+        props = feature.get("properties") or {}
+        url = str((props.get("urls") or {}).get("pbf", ""))
+        if not (url.startswith(BASE_URL + "/") and url.endswith(_PBF)):
+            continue
+        parts = url[len(BASE_URL) + 1 : -len(_PBF)].split("/")
+        if len(parts) >= 2 and parts[-1] == parts[-2]:
+            parts.pop()  # europe/malta/malta is also served as europe/malta
+        for code in props.get("iso3166-1:alpha2") or []:
+            found.setdefault(str(code).upper(), []).append("/".join(parts))
+    return {
+        code: (min(regions, key=lambda r: (r.count("/"), len(r))),)
+        for code, regions in found.items()
+    }
+
 
 AMENITIES = frozenset(
     {"restaurant", "cafe", "bar", "pub", "fast_food", "food_court", "ice_cream", "biergarten",
@@ -194,12 +223,21 @@ class OsmSource:
         west, south, east, north = box
         return west <= record.lon <= east and south <= record.lat <= north
 
+    def extracts(self) -> dict[str, tuple[str, ...]]:
+        """Extract regions per country, from Geofabrik's index (refreshed monthly)."""
+        index = download(INDEX_URL, self.extracts_dir / "geofabrik-index.json")
+        table = {**index_extracts(index), **EXTRA_EXTRACTS}
+        if "GB" in self.bbox:
+            table["GB"] = GB_TEST
+        return table
+
     def fetch(self, countries: Collection[str], since: date) -> Iterator[RawRecord]:
-        """Businesses in ``countries``; countries without a known extract are skipped."""
+        """Businesses in ``countries``; countries without an extract are skipped."""
         wanted = {c.upper() for c in countries}
-        if unknown := sorted(wanted - EXTRACTS.keys()):
+        table = self.extracts()
+        if unknown := sorted(wanted - table.keys()):
             log.warning("osm_no_extract", countries=unknown)
-        regions = sorted({r for c in wanted & EXTRACTS.keys() for r in EXTRACTS[c]})
+        regions = sorted({r for c in wanted & table.keys() for r in table[c]})
         if not regions:
             return
         borders = Borders(download(BORDERS_URL, self.extracts_dir / "borders.zip"))

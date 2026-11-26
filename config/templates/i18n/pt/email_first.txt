@@ -1,0 +1,16 @@
+Subject: Uma ideia rápida para {business_name}
+
+Olá, equipe {business_name},
+
+Encontrámos {business_name} ao pesquisar negócios de {category} em {city} e reparámos que {website_line}.
+
+A maioria dos clientes pesquisa online antes de ligar, por isso um site simples com os seus serviços, horários e um botão de chamada direta costuma gerar mais contactos. Criamos estes sites para pequenas empresas, normalmente prontos em {delivery_days} dias, a partir de {price}.
+
+Seria útil enviarmos uma maquete gratuita de uma página para {business_name}? Sem custo nem compromisso.
+
+Com os melhores cumprimentos,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Se preferir não receber mais mensagens nossas, responda «não, obrigado» e não voltaremos a contactá-lo.

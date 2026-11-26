@@ -1,0 +1,16 @@
+Subject: {business_name} için hızlı bir fikir
+
+Sayın {business_name} ekibi,
+
+{city} şehrindeki {category} işletmelerini araştırırken {business_name} ile karşılaştık ve {website_line} olduğunu fark ettik.
+
+Müşterilerin çoğu aramadan önce internette araştırma yapıyor; bu yüzden hizmetlerinizi, çalışma saatlerinizi ve bir arama düğmesini gösteren basit bir site genellikle daha fazla talep getiriyor. Küçük işletmeler için bu tür siteler oluşturuyoruz; genellikle {delivery_days} gün içinde hazır, {price} fiyatından başlıyor.
+
+{business_name} için ücretsiz bir sayfalık taslak göndermemiz işinize yarar mıydı? Herhangi bir ücret ya da yükümlülük yok.
+
+Saygılarımızla,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Bizden haber almak istemiyorsanız «hayır, teşekkürler» diye yanıtlayın; bir daha yazmayacağız.

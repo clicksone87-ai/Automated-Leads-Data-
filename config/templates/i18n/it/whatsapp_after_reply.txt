@@ -1,0 +1,1 @@
+Buongiorno, sono {sender_name} di {company}. Grazie per la risposta riguardo a {business_name}. Ecco l'idea dell'anteprima gratuita per il vostro sito web: {link}. Rispondo volentieri qui a qualsiasi domanda. Se preferite non ricevere messaggi su WhatsApp, basta dirmelo e smetterò.

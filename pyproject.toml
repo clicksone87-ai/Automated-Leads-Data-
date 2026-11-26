@@ -24,6 +24,7 @@ dependencies = [
     "pyyaml>=6.0",
     "rapidfuzz>=3.9",
     "selectolax>=0.3.21",
+    "sentry-sdk>=2.0",
     "sqlalchemy>=2.0.30",
     "structlog>=24.4",
     "tldextract>=5.1",

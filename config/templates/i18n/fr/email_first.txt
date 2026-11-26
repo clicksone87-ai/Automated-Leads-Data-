@@ -1,0 +1,16 @@
+Subject: Une idée rapide pour {business_name}
+
+Bonjour à toute l'équipe de {business_name},
+
+Nous avons découvert {business_name} en recherchant des entreprises {category} à {city}. Nous avons remarqué que vous {website_line}.
+
+La plupart des clients cherchent en ligne avant d'appeler, et un site simple présentant vos services, vos horaires et un bouton d'appel direct génère généralement plus de demandes. Nous créons ce type de sites pour les petites entreprises, habituellement prêts en {delivery_days} jours, à partir de {price}.
+
+Cela vous serait-il utile si nous vous envoyions une maquette gratuite d'une page pour {business_name} ? Sans frais ni engagement.
+
+Cordialement,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Si vous préférez ne plus avoir de nos nouvelles, répondez « non merci » et nous ne vous contacterons plus.

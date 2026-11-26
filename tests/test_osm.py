@@ -7,7 +7,15 @@ import pytest
 
 from leads.pipeline.normalise import map_category
 from leads.settings import load_categories
-from leads.sources.osm import EXTRACTS, OsmSource, age_date, category_of, read_extract, to_record
+from leads.sources import osm
+from leads.sources.osm import (
+    OsmSource,
+    age_date,
+    category_of,
+    index_extracts,
+    read_extract,
+    to_record,
+)
 
 SINCE = date(2018, 1, 1)
 XML = """<?xml version='1.0' encoding='UTF-8'?>
@@ -83,4 +91,23 @@ def test_only_wanted_countries_inside_their_box() -> None:
     batch = [record(14.5), record(14.5), record(14.5), record(20.0)]
     kept = list(source._located(batch, Fake(), {"MT"}))  # type: ignore[arg-type]
     assert [r.country_iso2 for r in kept] == ["MT"]
-    assert "PS" in EXTRACTS and "IL" not in EXTRACTS
+
+
+def test_extracts_come_from_the_geofabrik_index(tmp_path: Path) -> None:
+    table = index_extracts(Path(__file__).parent / "fixtures" / "geofabrik_index.json")
+    assert table["MT"] == ("europe/malta",)
+    assert table["PS"] == table["IL"] == ("asia/israel-and-palestine",)
+    assert table["AE"] == ("asia/gcc-states",)
+    assert table["DO"] == table["HT"] == ("central-america/haiti-and-domrep",)
+    assert table["US"] == ("north-america/us",)  # the country, not a state
+    assert table["GB"] == ("europe/united-kingdom",)
+
+
+def test_gb_test_box_keeps_the_leeds_manchester_extracts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixture = Path(__file__).parent / "fixtures" / "geofabrik_index.json"
+    monkeypatch.setattr(osm, "download", lambda url, dest: fixture)
+    test = OsmSource(tmp_path, {"GB": (-2.35, 53.35, -1.40, 53.90)}).extracts()
+    assert test["GB"] == osm.GB_TEST and test["SA"] == ("asia/gcc-states",)
+    assert OsmSource(tmp_path).extracts()["GB"] == ("europe/united-kingdom",)

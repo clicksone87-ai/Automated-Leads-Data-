@@ -76,6 +76,8 @@ services:
     command: ["leads", "check-websites", "--watch"]
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leads}:${POSTGRES_PASSWORD:-leads}@db:5432/${POSTGRES_DB:-leads}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-local}
       TZ: ${TZ:-UTC}
     volumes:
       - ./config:/app/config:ro
@@ -93,10 +95,12 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leads}:${POSTGRES_PASSWORD:-leads}@db:5432/${POSTGRES_DB:-leads}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GMAIL_ACCOUNT: ${GMAIL_ACCOUNT:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-local}
       TZ: ${TZ:-UTC}
     volumes:
       - ./data:/app/data
-      - ./secrets:/app/secrets:ro
+      - ./secrets:/app/secrets
       - ./config:/app/config:ro
     ports:
       - "127.0.0.1:${DASHBOARD_PORT:-3300}:3300"

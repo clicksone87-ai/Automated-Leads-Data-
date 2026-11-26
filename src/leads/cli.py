@@ -27,6 +27,9 @@ def _main(
 ) -> None:
     settings = get_settings()
     configure_logging("DEBUG" if verbose else settings.log_level, json=settings.log_json)
+    from leads import monitoring
+
+    monitoring.start(settings, "cli")
 
 
 def _run(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:

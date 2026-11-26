@@ -1,0 +1,1 @@
+Dzień dobry, z tej strony {sender_name} z {company}. Natrafiliśmy na {business_name} i zauważyliśmy, że przyjmują Państwo wiadomości na WhatsAppie. Tworzymy strony internetowe dla lokalnych firm i chętnie przygotujemy bezpłatnie i bez zobowiązań projekt jednej strony dla {business_name}. Jeśli wolą Państwo nie otrzymywać ode mnie wiadomości na WhatsAppie, wystarczy dać znać.

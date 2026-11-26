@@ -1,0 +1,1 @@
+Merhaba, ben {company} şirketinden {sender_name}. {business_name} hakkındaki yanıtınız için teşekkürler. Web siteniz için ücretsiz taslak fikri burada: {link}. Sorularınızı burada yanıtlamaktan memnuniyet duyarım. WhatsApp'tan mesaj almak istemezseniz söylemeniz yeterli, yazmayı bırakırım.

@@ -1,0 +1,131 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "england",
+    "parent": "united-kingdom",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/united-kingdom/england/england-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "gcc-states",
+    "parent": "asia",
+    "iso3166-1:alpha2": [
+     "QA",
+     "AE",
+     "OM",
+     "BH",
+     "KW"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/asia/gcc-states/gcc-states-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "haiti-and-domrep",
+    "parent": "central-america",
+    "iso3166-1:alpha2": [
+     "HT",
+     "DO"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/central-america/haiti-and-domrep/haiti-and-domrep-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "israel-and-palestine",
+    "parent": "asia",
+    "iso3166-1:alpha2": [
+     "PS",
+     "IL"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/asia/israel-and-palestine/israel-and-palestine-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "malta",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "MT"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/malta/malta-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "monaco",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "MC"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/monaco/monaco-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "united-kingdom",
+    "parent": "europe",
+    "iso3166-1:alpha2": [
+     "GB"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/europe/united-kingdom/united-kingdom-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us",
+    "parent": "north-america",
+    "iso3166-1:alpha2": [
+     "US"
+    ],
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/us-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": "us/texas",
+    "parent": "us",
+    "urls": {
+     "pbf": "https://download.geofabrik.de/north-america/us/texas/texas-latest.osm.pbf"
+    }
+   },
+   "geometry": null
+  }
+ ]
+}

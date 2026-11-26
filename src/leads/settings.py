@@ -152,6 +152,8 @@ class Settings(BaseSettings):
     abn_lookup_guid: SecretStr | None = None
     log_level: str = "INFO"
     log_json: bool = False
+    sentry_dsn: SecretStr | None = None  # error reports; empty = off
+    sentry_environment: str = "local"
 
     # --- from config/settings.yaml -------------------------------------------------------
     since: date = date(2018, 1, 1)

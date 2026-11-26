@@ -1,0 +1,1 @@
+Bonjour, ici {sender_name} de {company}. Merci pour votre réponse au sujet de {business_name}. Voici l'idée de maquette gratuite pour votre site : {link}. Je réponds volontiers à vos questions ici. Si vous préférez que je ne vous écrive pas sur WhatsApp, dites-le-moi simplement et j'arrêterai.

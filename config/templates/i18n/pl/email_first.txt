@@ -1,0 +1,16 @@
+Subject: Szybki pomysł dla {business_name}
+
+Szanowny Zespole {business_name},
+
+Znaleźliśmy {business_name} podczas poszukiwania firm {category} w {city} i zauważyliśmy, że {website_line}.
+
+Większość klientów szuka w internecie przed zadzwonieniem, dlatego prosta strona z usługami, godzinami otwarcia i przyciskiem do zadzwonienia zazwyczaj przyciąga więcej zapytań. Tworzymy takie strony dla małych firm, zwykle gotowe w {delivery_days} dni, od {price}.
+
+Czy pomogłoby, gdybyśmy przesłali Państwu bezpłatny jednostronicowy projekt dla {business_name}? Żadnych kosztów ani zobowiązań.
+
+Z poważaniem,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Jeśli nie chcą Państwo więcej wiadomości od nas, prosimy o odpowiedź «nie, dziękuję», a nie będziemy się już odzywać.

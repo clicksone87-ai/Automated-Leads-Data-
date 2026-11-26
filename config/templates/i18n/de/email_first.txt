@@ -1,0 +1,16 @@
+Subject: Eine schnelle Idee für {business_name}
+
+Sehr geehrtes Team von {business_name},
+
+wir sind bei der Suche nach {category}-Betrieben in {city} auf {business_name} gestoßen und haben festgestellt, dass Sie {website_line}.
+
+Die meisten Kunden suchen online, bevor sie anrufen. Eine einfache Website mit Ihren Leistungen, Öffnungszeiten und einem Klick-zum-Anrufen-Button bringt in der Regel mehr Anfragen. Wir erstellen solche Websites für kleine Unternehmen, üblicherweise fertig in {delivery_days} Tagen, ab {price}.
+
+Würde es Ihnen helfen, wenn wir Ihnen einen kostenlosen einseitigen Entwurf für {business_name} zusenden? Keine Kosten, keine Verpflichtung.
+
+Mit freundlichen Grüßen,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Wenn Sie nichts mehr von uns hören möchten, antworten Sie einfach mit „Nein danke", und wir melden uns nicht mehr.

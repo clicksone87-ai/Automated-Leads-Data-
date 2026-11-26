@@ -1,0 +1,16 @@
+Subject: Een snel idee voor {business_name}
+
+Beste team van {business_name},
+
+We kwamen {business_name} tegen tijdens het zoeken naar {category}-bedrijven in {city} en zagen dat u {website_line}.
+
+De meeste klanten zoeken online voordat ze bellen, dus een eenvoudige site met uw diensten, openingstijden en een bel-knop levert doorgaans meer aanvragen op. We bouwen zulke sites voor kleine bedrijven, meestal klaar in {delivery_days} dagen, vanaf {price}.
+
+Zou het helpen als we u een gratis éénseitig ontwerp voor {business_name} sturen? Geen kosten, geen verplichtingen.
+
+Met vriendelijke groet,
+{sender_name}
+{company} · {company_website} · {company_phone}
+{company_address}
+
+Als u liever niets meer van ons hoort, antwoord dan met «nee, bedankt» en we nemen geen contact meer op.

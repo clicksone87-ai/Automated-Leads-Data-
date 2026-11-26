@@ -1,0 +1,1 @@
+Hallo, dit is {sender_name} van {company}. Bedankt voor uw reactie over {business_name}. Hier is het idee voor het gratis ontwerp van uw website: {link}. Ik beantwoord hier graag uw vragen. Wilt u liever geen WhatsApp-berichten van mij? Laat het gewoon weten, dan stop ik.

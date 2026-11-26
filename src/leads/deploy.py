@@ -11,6 +11,7 @@ from typing import Any
 from prefect import serve
 from prefect.schedules import Cron
 
+from leads import monitoring
 from leads.flows.backup import backup_check
 from leads.flows.daily_drafts import daily_drafts
 from leads.flows.gmail_sync import gmail_sync
@@ -49,6 +50,7 @@ def build_deployments(settings: Settings) -> list[Any]:
 def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level, json=settings.log_json)
+    monitoring.start(settings, "worker")
     serve(*build_deployments(settings))
 
 

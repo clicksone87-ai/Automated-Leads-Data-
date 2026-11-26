@@ -1,0 +1,1 @@
+Hallo, hier ist {sender_name} von {company}. Vielen Dank für Ihre Antwort zu {business_name}. Hier ist die Idee für den kostenlosen Website-Entwurf: {link}. Fragen beantworte ich gern hier. Wenn Sie lieber keine Nachrichten über WhatsApp möchten, sagen Sie es einfach, dann höre ich auf.

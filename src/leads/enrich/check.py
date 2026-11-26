@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 import structlog
 from sqlalchemy import ColumnElement, Select, and_, func, or_, select, update
 
+from leads import monitoring
 from leads.db import lock_leads, session_scope
 from leads.enrich.website import FetchError, WebsiteCheck, check_many, network_ok
 from leads.models import Lead, LeadStatus, WebsiteStatus
@@ -256,6 +257,7 @@ def watch(pause_seconds: float = 300.0) -> None:
             counts = check_pending(BATCH * 10, recheck=True)
         except Exception as exc:
             log.warning("website_watch_failed", error=repr(exc))
+            monitoring.report(exc)
             counts = {"checked": 0}
         if counts["checked"] == 0 or "stopped_offline" in counts:
             time.sleep(pause_seconds)

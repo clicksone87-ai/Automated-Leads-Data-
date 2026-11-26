@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -18,7 +19,7 @@ from leads.models import Base, Lead, Outreach, Stage, Suppression, WebsiteStatus
 from leads.outreach import ai, drafts, gmail_api, gmail_sync
 from leads.outreach.ai import AiError, LeadFacts, write_email
 from leads.outreach.phrases import AR, LANGUAGES, display_name, lead_language, readable
-from leads.outreach.templates import template_path
+from leads.outreach.templates import placeholders, template_path
 from leads.settings import SenderSettings, Settings
 
 URL = os.environ.get("TEST_DATABASE_URL")
@@ -470,3 +471,67 @@ def test_failure_is_reported_once(settings: Settings, monkeypatch: pytest.Monkey
     assert alerts.report_failure("gmail-sync", "token expired", inbox)
     assert len(placed) == 2 and "INBOX" in placed[0]["labelIds"]
     assert b"token expired" in base64.urlsafe_b64decode(placed[0]["raw"])
+
+
+FR_FACTS = LeadFacts("Boulangerie Martin", "bakery", "Monaco", "none", None, None, "fr")
+FR_GOOD = {
+    "subject": "Une idée de site pour Boulangerie Martin",
+    "paragraphs": [
+        "Un bon site permet aux habitants de Monaco de découvrir vos pains du jour, de consulter "
+        "les horaires d'ouverture et de commander un gâteau sans avoir à appeler.",
+        "Nous pouvons préparer gratuitement une maquette d'une page, sans engagement. "
+        "Souhaitez-vous la voir ?",
+    ],
+}
+
+
+def test_french_email() -> None:
+    email, seen = ask(FR_GOOD, facts=FR_FACTS)
+    assert "French" in seen[0].content.decode()
+    assert email.body.startswith("Bonjour à toute l'équipe de Boulangerie Martin,")
+    assert "« non merci »" in email.body
+    assert gmail_sync.is_opt_out("Non merci, ça ne nous intéresse pas.")
+
+
+@pytest.mark.parametrize(
+    ("bad", "facts"),
+    [
+        ("Votre site est lent et démodé.", FR_FACTS),
+        ("Nous avons vu que votre site manque de clarté.", FR_FACTS),
+    ],
+)
+def test_claims_in_other_languages_are_refused(bad: str, facts: LeadFacts) -> None:
+    with pytest.raises(AiError, match="safe email"):
+        ask({**FR_GOOD, "paragraphs": [*FR_GOOD["paragraphs"], bad]}, facts=facts)
+
+
+def test_english_text_for_a_french_lead_is_refused() -> None:
+    english = {**GOOD, "subject": "Website idea for Boulangerie Martin"}
+    with pytest.raises(AiError, match="French"):
+        ask(english, facts=FR_FACTS)
+
+
+@pytest.mark.parametrize(
+    ("language", "text"),
+    [
+        ("de", "Ihre Website ist veraltet."),
+        ("es", "Su sitio web está anticuado."),
+        ("it", "Il vostro sito è obsoleto."),
+        ("pt", "O seu site está desatualizado."),
+        ("nl", "Uw website is verouderd."),
+        ("pl", "Państwa strona jest przestarzała."),
+        ("ru", "Ваш сайт устаревший."),
+        ("tr", "Web siteniz eski moda."),
+    ],
+)
+def test_each_language_spots_claims_about_the_site(language: str, text: str) -> None:
+    assert re.search(LANGUAGES[language].judges, text, re.IGNORECASE)
+
+
+def test_translated_templates_use_the_english_placeholders() -> None:
+    for name in ("email_followup", "whatsapp_after_reply", "whatsapp_first"):
+        english = placeholders(template_path(name, "en").read_text(encoding="utf-8"))
+        for code in LANGUAGES:
+            path = template_path(name, code)
+            assert path.parent.name == code or code == "en", (name, code)
+            assert placeholders(path.read_text(encoding="utf-8")) <= english | {"link"}, path
