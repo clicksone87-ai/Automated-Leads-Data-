@@ -55,6 +55,10 @@ class WebsiteSettings(BaseModel):
     recheck_after_days: int = 30
     min_text_chars: int = 100
     retry_wait_seconds: float = 5.0
+    # Headless Chromium for pages that show text only through JavaScript (needs the
+    # optional "browser" extra; skipped when it is not installed).
+    browser_fallback: bool = True
+    browser_pages: int = 2
 
 
 class OutreachSettings(BaseModel):

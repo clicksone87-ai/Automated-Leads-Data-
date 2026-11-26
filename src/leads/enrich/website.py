@@ -37,6 +37,7 @@ import httpx
 import structlog
 from selectolax.lexbor import LexborHTMLParser
 
+from leads.enrich import browser as headless
 from leads.enrich import parked
 from leads.enrich.safe_http import PublicOnlyTransport, read_limited
 from leads.models import WebsiteStatus
@@ -460,12 +461,17 @@ def _root(url: str) -> str:
     return f"{parts.scheme}://{parts.netloc}/"
 
 
+# Reasons from classify() for a page whose text only scripts can show.
+NEEDS_BROWSER = frozenset({"200, JS-rendered", "200, content not readable"})
+
+
 async def check_website(
     website: str | None,
     *,
     country_iso2: str | None,
     client: httpx.AsyncClient,
     cfg: WebsiteSettings,
+    browser: headless.Browser | None = None,
 ) -> WebsiteCheck:
     """Check one website: DNS, robots.txt, home page, then (if working) one contact page."""
     url = normalise_website(website)
@@ -522,6 +528,20 @@ async def check_website(
             if first is None and status == WebsiteStatus.BROKEN:
                 status = None  # only seen once
 
+    if browser is not None and reason in NEEDS_BROWSER and allowed(home.final_url or url):
+        rendered = await browser.render(home.final_url or url)
+        if rendered is not None:
+            page = PageFetch(url, rendered["final_url"], rendered["status_code"], rendered["html"])
+            shown, why = classify(
+                url, page, nameservers=nameservers, min_text_chars=cfg.min_text_chars
+            )
+            if shown in (
+                WebsiteStatus.WORKING,
+                WebsiteStatus.PARKED,
+                WebsiteStatus.REDIRECT_SOCIAL,
+            ):
+                home, status, reason = page, shown, f"{why}, in a browser"
+
     check = WebsiteCheck(status, reason, final_url=home.final_url)
     if status != WebsiteStatus.WORKING or not home.html:
         return check
@@ -553,6 +573,12 @@ async def check_many(
     semaphore = asyncio.Semaphore(concurrency)
     hosts: dict[str, asyncio.Lock] = {}
     results: dict[str, WebsiteCheck] = {}
+    browser: headless.Browser | None = None
+    if cfg.browser_fallback and items and headless.available():
+        try:
+            browser = await headless.Browser(cfg).__aenter__()
+        except Exception as exc:  # e.g. Chromium not downloaded: check without it
+            log.warning("browser_unavailable", error=repr(exc))
     async with make_client(cfg) as client:
 
         async def one(key: str, website: str | None, country: str | None) -> None:
@@ -560,13 +586,17 @@ async def check_many(
             async with lock, semaphore:
                 try:
                     results[key] = await check_website(
-                        website, country_iso2=country, client=client, cfg=cfg
+                        website, country_iso2=country, client=client, cfg=cfg, browser=browser
                     )
                 except Exception as exc:  # one odd site must not lose the batch
                     log.warning("website_check_failed", website=website, error=repr(exc))
                     results[key] = WebsiteCheck(None, "check failed")
 
-        await asyncio.gather(*(one(*item) for item in items))
+        try:
+            await asyncio.gather(*(one(*item) for item in items))
+        finally:
+            if browser is not None:
+                await browser.__aexit__(None, None, None)
     return results
 
 

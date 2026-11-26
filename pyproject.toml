@@ -34,6 +34,11 @@ dependencies = [
 [project.scripts]
 leads = "leads.cli:app"
 
+[project.optional-dependencies]
+browser = [
+    "playwright>=1.48",
+]
+
 [dependency-groups]
 dev = [
     "mypy>=1.11",

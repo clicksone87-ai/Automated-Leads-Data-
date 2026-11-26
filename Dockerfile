@@ -17,15 +17,26 @@ ENV UV_HTTP_TIMEOUT=300 \
 
 WORKDIR /app
 
+# The osmium wheel needs libexpat and the Playwright driver libatomic; the slim image has neither.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libexpat1 libatomic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependencies first (cached layer), then the project itself.
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --frozen --no-dev --no-install-project
+# Headless Chromium for JavaScript-only websites. Build with --build-arg BROWSER=false
+# for a smaller image; the website check then skips those pages.
+ARG BROWSER=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+RUN uv sync --frozen --no-dev --no-install-project $([ "$BROWSER" = true ] && echo --extra browser)
+RUN if [ "$BROWSER" = true ]; then playwright install --with-deps chromium; fi
 
 COPY src ./src
 COPY config ./config
 COPY migrations ./migrations
 COPY alembic.ini ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev $([ "$BROWSER" = true ] && echo --extra browser)
 
 RUN useradd --create-home --uid 1000 app \
     && mkdir -p /app/data /app/secrets /app/backups /home/app/.prefect \
