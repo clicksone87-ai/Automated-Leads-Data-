@@ -162,6 +162,10 @@ class Settings(BaseSettings):
     backups_dir: Path = PROJECT_ROOT / "backups"
     google_client_secret_file: Path | None = None
     google_token_file: Path | None = None
+    # The Gmail sign-in as three values, in place of secrets/token.json (see google_auth).
+    google_client_id: str | None = None
+    google_client_secret: SecretStr | None = None
+    google_refresh_token: SecretStr | None = None
     gmail_user_id: str = "me"
     gmail_account: str | None = None  # drafts are refused in any other account
     groq_api_key: SecretStr | None = None
@@ -217,6 +221,18 @@ class Settings(BaseSettings):
     @property
     def token_path(self) -> Path:
         return self.google_token_file or self.secrets_dir / "token.json"
+
+    @property
+    def google_env_sign_in(self) -> bool:
+        """The Gmail sign-in is given in .env (client id, secret and refresh token)."""
+        return all(
+            v is not None and (v if isinstance(v, str) else v.get_secret_value())
+            for v in (self.google_client_id, self.google_client_secret, self.google_refresh_token)
+        )
+
+    @property
+    def google_signed_in(self) -> bool:
+        return self.google_env_sign_in or self.token_path.is_file()
 
     def source_enabled(self, name: str) -> bool:
         return bool(self.sources.get(name, {}).get("enabled", False))

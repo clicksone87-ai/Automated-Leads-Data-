@@ -20,7 +20,7 @@ from leads.settings import get_settings
 def gmail_sync() -> dict[str, int]:
     from leads.outreach.gmail_sync import sync
 
-    if not get_settings().token_path.is_file():
+    if not get_settings().google_signed_in:
         return {"not_connected": 1}
     run_id = start_run("gmail-sync")
     try:

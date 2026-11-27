@@ -6,13 +6,16 @@ Run once:
     docker compose run --rm auth                       # in Docker (copy/paste flow)
 
 Needs ``secrets/client_secret.json`` (OAuth client of type "Desktop app") and writes
-``secrets/token.json``.
+``secrets/token.json``. Instead of that file, the sign-in can be given in .env as
+GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN; ``--print-env`` prints
+those three lines from an existing token.
 """
 
 from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -28,6 +31,7 @@ from leads.settings import Settings, get_settings
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.modify"
 SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
 MANUAL_REDIRECT_URI = "http://localhost:8765/"
+TOKEN_URI = "https://oauth2.googleapis.com/token"
 
 
 def scopes(settings: Settings) -> list[str]:
@@ -35,13 +39,33 @@ def scopes(settings: Settings) -> list[str]:
     return [GMAIL_SCOPE, SHEETS_SCOPE] if settings.google_sheet_id else [GMAIL_SCOPE]
 
 
+def _env_credentials(settings: Settings) -> Credentials:
+    """Credentials from the three .env values; the access token is fetched on first use."""
+    assert settings.google_client_secret is not None
+    assert settings.google_refresh_token is not None
+    creds = Credentials(
+        token=None,
+        refresh_token=settings.google_refresh_token.get_secret_value(),
+        token_uri=TOKEN_URI,
+        client_id=settings.google_client_id,
+        client_secret=settings.google_client_secret.get_secret_value(),
+        scopes=scopes(settings),
+    )
+    creds.refresh(Request())
+    return creds
+
+
 def load_credentials(settings: Settings | None = None) -> Credentials:
-    """Load the saved token, refreshing it if expired."""
+    """The .env sign-in when given, else the saved token, refreshed if expired."""
     settings = settings or get_settings()
+    if settings.google_env_sign_in:
+        return _env_credentials(settings)
     token_path = settings.token_path
     if not token_path.exists():
         raise RuntimeError(
-            f"No Google token at {token_path}. Run: python -m leads.google_auth (see README)."
+            f"No Google sign-in: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and "
+            f"GOOGLE_REFRESH_TOKEN in .env, or create {token_path} with: "
+            "python -m leads.google_auth (see README)."
         )
     creds = Credentials.from_authorized_user_file(str(token_path), scopes(settings))
     if creds.expired and creds.refresh_token:
@@ -102,6 +126,16 @@ def sign_in(settings: Settings | None = None, *, no_browser: bool = False) -> Pa
     return token_path
 
 
+def env_lines(token_path: Path) -> list[str]:
+    """The three .env lines that replace ``token_path``."""
+    data = json.loads(token_path.read_text(encoding="utf-8"))
+    return [
+        f"GOOGLE_CLIENT_ID={data['client_id']}",
+        f"GOOGLE_CLIENT_SECRET={data['client_secret']}",
+        f"GOOGLE_REFRESH_TOKEN={data['refresh_token']}",
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Google OAuth sign-in for lead-automation")
     parser.add_argument(
@@ -109,7 +143,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="copy/paste flow (default inside Docker)",
     )
+    parser.add_argument(
+        "--print-env",
+        action="store_true",
+        help="print the .env lines for an existing token instead of signing in",
+    )
     args = parser.parse_args(argv)
+    if args.print_env:
+        print("\n".join(env_lines(get_settings().token_path)))
+        return 0
     path = sign_in(no_browser=args.no_browser or _running_in_container())
     print(f"Saved Google token to {path}")
     return 0

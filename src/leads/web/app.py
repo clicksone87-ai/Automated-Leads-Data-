@@ -160,7 +160,7 @@ def lead(lead_id: str, db: DB) -> dict[str, Any]:
 def setup_state(settings: Settings) -> dict[str, bool]:
     sender = settings.sender
     return {
-        "gmail": settings.token_path.is_file() and bool(settings.gmail_account),
+        "gmail": settings.google_signed_in and bool(settings.gmail_account),
         "ai": any(key for _, key in ai.services(settings)),
         "sender": not drafts.warnings(settings) and sender.company not in ("", "Your Company"),
         "sheet": bool(settings.google_sheet_id),

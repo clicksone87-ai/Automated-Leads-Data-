@@ -55,6 +55,12 @@ Edit `.env`:
 
 ## 3. Google sign-in (Gmail drafts)
 
+If the system already runs signed in to the same Gmail account elsewhere, copy
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REFRESH_TOKEN` from that `.env`
+(`python -m leads.google_auth --print-env` prints them) and skip this step.
+
+Otherwise:
+
 1. In Google Cloud Console, enable the **Gmail API** and create an OAuth client ID of
    type **Desktop app**. Save the JSON as `secrets/client_secret.json`.
 2. On the OAuth consent screen, choose **Publish app**. In "Testing" mode the sign-in

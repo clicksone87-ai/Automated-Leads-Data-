@@ -65,3 +65,37 @@ def test_every_registry_is_switched_on() -> None:
     settings = Settings()
     for name in REGISTRY_SOURCES:
         assert settings.source_enabled(name), name
+
+
+def test_gmail_sign_in_from_env_values(tmp_path: Any) -> None:
+    from pydantic import SecretStr
+
+    no_file = tmp_path / "token.json"
+    empty = Settings(
+        google_token_file=no_file,
+        google_client_id="",
+        google_client_secret=None,
+        google_refresh_token=None,
+    )
+    assert not empty.google_signed_in
+    given = Settings(
+        google_token_file=no_file,
+        google_client_id="id.apps.googleusercontent.com",
+        google_client_secret=SecretStr("secret"),
+        google_refresh_token=SecretStr("1//refresh"),
+    )
+    assert given.google_env_sign_in and given.google_signed_in
+
+
+def test_print_env_lines_come_from_the_token(tmp_path: Any) -> None:
+    import json
+
+    from leads.google_auth import env_lines
+
+    token = tmp_path / "token.json"
+    token.write_text(json.dumps({"client_id": "a", "client_secret": "b", "refresh_token": "c"}))
+    assert env_lines(token) == [
+        "GOOGLE_CLIENT_ID=a",
+        "GOOGLE_CLIENT_SECRET=b",
+        "GOOGLE_REFRESH_TOKEN=c",
+    ]
