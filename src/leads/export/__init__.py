@@ -5,6 +5,10 @@ ATTRIBUTION_LINES: tuple[str, ...] = (
     "used under CDLA Permissive 2.0 / ODbL as applicable.",
     "Contains data from Foursquare Open Source Places (opensource.foursquare.com), Apache 2.0.",
     "© OpenStreetMap contributors (openstreetmap.org/copyright), ODbL.",
+    "Company register data: Companies House (UK), INSEE SIRENE (France), Brønnøysund "
+    "(Norway), ABR (Australia), Corporations Canada, PRH (Finland, CC BY 4.0), "
+    "e-Business Register (Estonia), Czech Statistical Office (CC BY 4.0), New York "
+    "Department of State and Colorado Secretary of State open data.",
 )
 ATTRIBUTION = " ".join(ATTRIBUTION_LINES)
 

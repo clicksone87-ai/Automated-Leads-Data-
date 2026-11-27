@@ -277,3 +277,59 @@ def test_page_the_browser_cannot_open_keeps_its_first_result(
 ) -> None:
     check = run_with_browser(SCRIPT_ONLY, FakeBrowser(None), monkeypatch)
     assert check.status is None and check.reason == "200, content not readable"
+
+
+def test_founding_year_phrases() -> None:
+    from datetime import date
+
+    today = date(2026, 11, 28)
+    found = {
+        "<p>Family bakery, established 2019</p>": 2019,
+        "<p>Est. 1998</p>": 1998,
+        "<p>Serving Leeds since 2021.</p>": 2021,
+        "<p>Seit 2015 Ihr Partner</p>": 2015,
+        "<p>Depuis 2020</p>": 2020,
+        "<p>12 years in business</p>": 2014,
+        "<p>Open since 9 am, call 2019 1234</p>": None,
+    }
+    for html, year in found.items():
+        assert w.extract_founded_year(html, today=today) == year, html
+
+
+def test_site_years_date_an_unknown_age_lead() -> None:
+    contacts = Contacts(founded_year=2021, copyright_year=2022)
+    check = WebsiteCheck(WebsiteStatus.WORKING, "ok", "https://acme.ie/", contacts)
+    unknown = lead(website="https://acme.ie")
+    unknown.age_unknown = True
+    values = changes(unknown, check, guessed=False, shared=False)
+    assert (values["age_source"], values["age_unknown"]) == ("website", False)
+    assert values["created_date"].year == 2021 and "status" not in values
+
+
+def test_an_old_site_year_closes_the_lead() -> None:
+    from datetime import date
+
+    check = WebsiteCheck(
+        WebsiteStatus.WORKING, "ok", "https://acme.ie/", Contacts(copyright_year=2009)
+    )
+    known = lead(website="https://acme.ie")
+    known.age_unknown, known.created_date = False, date(2021, 5, 1)
+    values = changes(known, check, guessed=False, shared=False)
+    assert (values["age_source"], values["status"]) == ("copyright", "closed")
+
+
+def test_a_later_site_year_or_this_years_copyright_changes_nothing() -> None:
+    from datetime import date
+
+    from leads.pipeline.age import dated_by_website, website_hint
+
+    today = date(2026, 11, 28)
+    assert website_hint(2026, None, today=today) is None
+    hint = website_hint(2025, None, today=today)
+    assert dated_by_website(date(2020, 1, 1), False, hint, date(2018, 1, 1)) == {}
+    shared = WebsiteCheck(
+        WebsiteStatus.WORKING, "ok", "https://acme.ie/", Contacts(copyright_year=2009)
+    )
+    assert "status" not in changes(
+        lead(website="https://acme.ie"), shared, guessed=False, shared=True
+    )

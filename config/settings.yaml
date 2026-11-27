@@ -230,5 +230,15 @@ sources:
     enabled: true
   canada:
     enabled: true
+  prh:                          # Finland, free bulk file (about 100 MB)
+    enabled: true
+  rik:                          # Estonia, free bulk file
+    enabled: true
+  res:                          # Czechia, free bulk file (about 550 MB)
+    enabled: true
+  us_ny:                        # New York Department of State, free bulk file
+    enabled: true
+  us_co:                        # Colorado Secretary of State, free bulk file
+    enabled: true
   directories:
     enabled: false

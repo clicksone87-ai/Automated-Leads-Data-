@@ -17,6 +17,7 @@ from leads import monitoring
 from leads.db import lock_leads, session_scope
 from leads.enrich.website import FetchError, WebsiteCheck, check_many, network_ok
 from leads.models import Lead, LeadStatus, WebsiteStatus
+from leads.pipeline.age import dated_by_website, website_hint
 from leads.pipeline.normalise import host_of, is_platform, normalise_website, registered_domain
 from leads.settings import get_settings, load_filters
 
@@ -185,6 +186,14 @@ def changes(
         )
     if check.status != WebsiteStatus.WORKING or shared:
         return values
+    values.update(
+        dated_by_website(
+            lead.created_date,
+            lead.age_unknown,
+            website_hint(check.contacts.copyright_year, check.contacts.founded_year),
+            get_settings().since,
+        )
+    )
     if not lead.email and (email := usable_email(check)):
         values["email"] = email
     if not lead.whatsapp_number and check.contacts.whatsapp:

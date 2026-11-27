@@ -263,7 +263,7 @@ def in_scope(country_iso2: str | None, countries: Collection[str]) -> bool:
 
 
 # Registries whose category starts with a NACE-based activity code.
-NACE_SOURCES = frozenset({"companies_house", "brreg", "sirene"})
+NACE_SOURCES = frozenset({"companies_house", "brreg", "sirene", "prh", "res"})
 
 
 # --- category --------------------------------------------------------------------------

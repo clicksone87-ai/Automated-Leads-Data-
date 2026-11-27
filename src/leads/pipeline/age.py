@@ -2,9 +2,10 @@
 
 ``created_date`` = earliest of: registry incorporation date, Foursquare ``date_created``,
 OSM first version, Wayback Machine first capture, "N years in business" text.
-If none of those exist, ``first_seen`` (when this tool first saw it) is used as the date
-but the lead is flagged ``age_unknown = True``, because first_seen says nothing about
-how old the business really is.
+The business's own website (copyright notice, "established 2019") is applied later, when
+the site is checked: see ``website_hint``. If none of those exist, ``first_seen`` (when
+this tool first saw it) is used as the date but the lead is flagged ``age_unknown = True``,
+because first_seen says nothing about how old the business really is.
 """
 
 from __future__ import annotations
@@ -80,6 +81,48 @@ def resolve_age(evidence: AgeEvidence, *, today: date | None = None) -> AgeResul
             created_date=evidence.first_seen, age_source="first_seen", age_unknown=True
         )
     return AgeResult(created_date=None, age_source=None, age_unknown=True)
+
+
+def website_hint(
+    copyright_year: int | None, founded_year: int | None, *, today: date | None = None
+) -> tuple[date, str] | None:
+    """Earliest year the business's own site gives: a copyright notice or a founding year.
+
+    A notice naming only the current year is left out: many sites update it automatically.
+    """
+    current = (today or date.today()).year
+    found = []
+    if copyright_year is not None and copyright_year < current:
+        found.append((date(copyright_year, 1, 1), "copyright"))
+    if founded_year is not None and founded_year <= current:
+        found.append((date(founded_year, 1, 1), "website"))
+    return min(found) if found else None
+
+
+def dated_by_website(
+    created_date: date | None,
+    age_unknown: bool,
+    hint: tuple[date, str] | None,
+    since: date,
+) -> dict[str, object]:
+    """Column values when the site's own year is the earliest evidence, else nothing.
+
+    A business the site shows to be older than ``since`` is closed, like a Wayback capture
+    before ``since``: it stays in the database but is no longer a lead.
+    """
+    if hint is None:
+        return {}
+    started, source = hint
+    if not age_unknown and created_date is not None and created_date <= started:
+        return {}
+    values: dict[str, object] = {
+        "created_date": started,
+        "age_source": source,
+        "age_unknown": False,
+    }
+    if started < since:
+        values["status"] = LeadStatus.CLOSED.value
+    return values
 
 
 def keep_lead(status: str, created_date: date | None, age_unknown: bool, since: date) -> bool:

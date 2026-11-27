@@ -67,6 +67,36 @@ def _canada(s: Settings) -> Source:
     return CanadaSource(data_dir=s.data_dir)
 
 
+def _prh(s: Settings) -> Source:
+    from leads.sources.registries.prh import PrhSource
+
+    return PrhSource(data_dir=s.data_dir)
+
+
+def _rik(s: Settings) -> Source:
+    from leads.sources.registries.rik import RikSource
+
+    return RikSource(data_dir=s.data_dir)
+
+
+def _res(s: Settings) -> Source:
+    from leads.sources.registries.res import ResSource
+
+    return ResSource(data_dir=s.data_dir)
+
+
+def _us_ny(s: Settings) -> Source:
+    from leads.sources.registries.us_states import NewYorkSource
+
+    return NewYorkSource(data_dir=s.data_dir)
+
+
+def _us_co(s: Settings) -> Source:
+    from leads.sources.registries.us_states import ColoradoSource
+
+    return ColoradoSource(data_dir=s.data_dir)
+
+
 def _directories(s: Settings) -> Source:
     from leads.sources.directories import LicensedDirectorySource
 
@@ -82,6 +112,11 @@ SOURCE_FACTORIES: dict[str, Callable[[Settings], Source]] = {
     "brreg": _brreg,
     "abn": _abn,
     "canada": _canada,
+    "prh": _prh,
+    "rik": _rik,
+    "res": _res,
+    "us_ny": _us_ny,
+    "us_co": _us_co,
     "directories": _directories,
 }
 

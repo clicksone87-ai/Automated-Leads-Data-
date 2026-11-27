@@ -7,6 +7,7 @@ import pytest
 
 from leads import deploy
 from leads.settings import CollectSettings, Settings
+from leads.sources.registries import REGISTRY_SOURCES
 
 
 class FakeSession:
@@ -62,5 +63,5 @@ def test_start_collect_retries_until_the_deployment_exists(
 
 def test_every_registry_is_switched_on() -> None:
     settings = Settings()
-    for name in ("companies_house", "sirene", "brreg", "abn", "canada"):
+    for name in REGISTRY_SOURCES:
         assert settings.source_enabled(name), name

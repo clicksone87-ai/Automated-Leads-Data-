@@ -88,6 +88,7 @@ class Contacts:
     whatsapp: list[WhatsAppHit] = field(default_factory=list)
     socials: dict[str, str] = field(default_factory=dict)
     copyright_year: int | None = None
+    founded_year: int | None = None  # "established 2019", "since 2019", "6 years in business"
 
 
 @dataclass(slots=True)
@@ -301,12 +302,37 @@ def extract_copyright_year(html: str, *, today: date | None = None) -> int | Non
     return min(years) if years else None
 
 
+# "Established 2019", "Est. 2019", "Founded in 2019", "Since 2019", and the same in the
+# languages the emails are written in. A year must follow the phrase directly.
+_FOUNDED_RE = re.compile(
+    r"\b(?:established(?:\s+in)?|est\.|founded(?:\s+in)?|in\s+business\s+since|since|"
+    r"gegründet(?:\s+im\s+jahr|\s+in)?|seit|fondée?\s+en|depuis|fundad[ao]\s+en|desde|"
+    r"fondat[ao]\s+nel|dal|opgericht\s+in|sinds|założon[aey]\s+w|od\s+roku|kuruluş|"
+    r"основан[аоы]?(?:\s+в)?)\s+((?:19|20)\d{2})\b",
+    re.IGNORECASE,
+)
+_YEARS_IN_BUSINESS_RE = re.compile(
+    r"\b(\d{1,3})\+?\s+years\s+(?:in\s+business|of\s+trading|trading)\b", re.IGNORECASE
+)
+
+
+def extract_founded_year(html: str, *, today: date | None = None) -> int | None:
+    """Earliest founding year a site states about itself ("since 2019", "6 years in business")."""
+    current = (today or date.today()).year
+    text = visible_text(html)
+    years = [int(m.group(1)) for m in _FOUNDED_RE.finditer(text)]
+    years += [current - int(m.group(1)) for m in _YEARS_IN_BUSINESS_RE.finditer(text)]
+    plausible = [y for y in years if 1800 <= y <= current]
+    return min(plausible) if plausible else None
+
+
 def extract_contacts(html: str, page_url: str, country_iso2: str | None) -> Contacts:
     return Contacts(
         emails=extract_emails(html),
         whatsapp=extract_whatsapp(html, page_url, country_iso2),
         socials=extract_socials(html),
         copyright_year=extract_copyright_year(html),
+        founded_year=extract_founded_year(html),
     )
 
 
@@ -320,6 +346,8 @@ def merge_contacts(*items: Contacts) -> Contacts:
             merged.socials.setdefault(k, v)
         years = [y for y in (merged.copyright_year, c.copyright_year) if y]
         merged.copyright_year = min(years) if years else None
+        founded = [y for y in (merged.founded_year, c.founded_year) if y]
+        merged.founded_year = min(founded) if founded else None
     return merged
 
 

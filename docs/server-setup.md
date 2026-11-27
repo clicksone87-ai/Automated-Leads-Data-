@@ -48,8 +48,9 @@ Edit `.env`:
 `config/settings.yaml` needs no changes:
 
 - `collect.countries` is `[]`: every country in `config/countries.yaml` is collected.
-  All sources (Overture, Foursquare, OpenStreetMap and the UK, France, Norway, Australia
-  and Canada registries) are switched on under `sources:`.
+  All sources are switched on under `sources:`: Overture, Foursquare, OpenStreetMap and
+  the registries of the UK, France, Norway, Australia, Canada, Finland, Estonia, Czechia,
+  New York and Colorado. The registry downloads alone take several GB in `data/registries/`.
 - `website.user_agent`: optionally add the company website, so site owners can see who checks them.
 
 ## 3. Google sign-in (Gmail drafts)

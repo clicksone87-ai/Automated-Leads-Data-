@@ -6,4 +6,6 @@ Each registry module exposes a Source class whose ``fetch`` yields RawRecords wi
 records mostly enrich age and legal name via matching (name + postcode).
 """
 
-REGISTRY_SOURCES = frozenset({"companies_house", "sirene", "brreg", "abn", "canada"})
+REGISTRY_SOURCES = frozenset(
+    {"companies_house", "sirene", "brreg", "abn", "canada", "prh", "rik", "res", "us_ny", "us_co"}
+)
