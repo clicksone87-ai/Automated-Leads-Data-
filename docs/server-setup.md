@@ -33,15 +33,24 @@ Edit `.env`:
 - `TZ`: the office time zone (for example `Asia/Karachi`). Use the same value for
   `timezone` in `config/settings.yaml`, because all schedules use it.
 - `GROQ_API_KEY`: free key from console.groq.com, used to write emails.
+- `GEMINI_API_KEY`: free key from aistudio.google.com/apikey. Used by itself when the free
+  Groq limit is used up or Groq is down.
 - `HF_TOKEN`: Hugging Face read token with access to `foursquare/fsq-os-places`.
 - `GMAIL_ACCOUNT`: the Gmail or Google Workspace address that should hold the drafts.
+- `SENDER__*`, `OUTREACH__PRICE` and `OUTREACH__DELIVERY_DAYS`: the sender name, company,
+  website, phone, full postal address, mock-up link, price and delivery time shown in every
+  email. Remove the `# ` in front of each line and fill it in. Until they are filled in,
+  the dashboard warns that a draft should not be sent. The price may stay empty.
+- `OUTREACH__AUTO_DRAFTS=true`: the 07:00 run writes up to `BATCH__DRAFTS_PER_DAY` Gmail
+  drafts by itself (default 50). Turn it on only after the sender details are filled in.
+  A person still reviews and sends each draft in Gmail.
 
-Edit `config/settings.yaml`:
+`config/settings.yaml` needs no changes:
 
-- `collect.countries`: set `[]` to collect every country in `config/countries.yaml`.
-- `country_bbox`: delete the `GB` line. It limits Great Britain to Leeds–Manchester for testing.
-- `sender`, `price` and `website.user_agent`: the real company details. Until they are
-  filled in, the dashboard warns that a draft should not be sent.
+- `collect.countries` is `[]`: every country in `config/countries.yaml` is collected.
+  All sources (Overture, Foursquare, OpenStreetMap and the UK, France, Norway, Australia
+  and Canada registries) are switched on under `sources:`.
+- `website.user_agent`: optionally add the company website, so site owners can see who checks them.
 
 ## 3. Google sign-in (Gmail drafts)
 
@@ -57,10 +66,13 @@ Edit `config/settings.yaml`:
 
 ```bash
 docker compose up -d --build
-docker compose run --rm worker alembic upgrade head    # creates the tables
-docker compose run --rm worker leads db-check
 docker compose ps
 ```
+
+That is all. On start the worker creates or updates the database tables. When no full
+collect has finished in the last 35 days (always true on a new server), it starts the
+collect right away instead of waiting for the 1st of the month. The website checker
+starts with it and works through the leads as they arrive.
 
 Running services:
 
@@ -75,16 +87,17 @@ Running services:
 
 ## 5. First full load
 
-Start the monthly flow now instead of waiting for the 1st of the month:
+The first collect starts by itself (see step 4). It downloads every source, loads and
+deduplicates the leads, screens them against the sanctions list and closes leads that
+disappeared. A whole-world run takes many hours and fills a large part of the disk.
+Follow it in the Prefect UI or with `docker compose logs -f worker`. If one source cannot
+be reached, the others still load and an alert lands in the Gmail inbox.
+
+To start a collect by hand at any time:
 
 ```bash
 docker compose exec worker prefect deployment run 'monthly-collect/monthly-collect'
 ```
-
-It collects every source, loads and deduplicates the leads, screens them against the
-sanctions list and closes leads that disappeared. A whole-world run takes many hours.
-Follow it in the Prefect UI or with `docker compose logs -f worker`. Website checks start
-by themselves as leads arrive.
 
 To load a few countries first:
 
@@ -115,10 +128,9 @@ auth, or a VPN) in front of port 3300.
 ```bash
 git pull
 docker compose up -d --build
-docker compose run --rm worker alembic upgrade head
 ```
 
-After changing only `config/settings.yaml`, run `docker compose restart worker checker app`.
+The worker applies new database migrations by itself. After changing only `config/settings.yaml`, run `docker compose restart worker checker app`.
 
 ## 8. Moving existing leads from another machine (optional)
 
@@ -141,7 +153,7 @@ everything that exists only on the server.
 
 ## 10. Before the first real emails
 
-- The sender name, phone, website, price and postal address are set in `config/settings.yaml`.
+- The sender name, phone, website, price and postal address are set in `.env`.
 - The Gmail account is the company account, and the Google app is published.
 - The email rules for each target country have been checked by the company.
 

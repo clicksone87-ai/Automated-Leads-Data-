@@ -1,4 +1,4 @@
-"""Writes the personal part of a first email with a Groq-hosted model.
+"""Writes the personal part of a first email with a Groq-hosted model, or a fallback.
 
 The model only sees public business facts, never the lead's email or phone. Greeting,
 signature and opt-out line are added by code, and the text is refused when it states
@@ -18,11 +18,13 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from leads.outreach.phrases import EN, LANGUAGES
-from leads.settings import SenderSettings, Settings
+from leads.settings import AiProvider, SenderSettings, Settings
 
 API_URL = "https://api.groq.com/openai/v1/chat/completions"
 ATTEMPTS = 3
 MAX_WAIT = 65.0
+# How long a service whose free limit is used up is left alone before it is tried again.
+REST_SECONDS = 3600.0
 
 SYSTEM = """You write short, friendly, plain first emails from a small web design company to a \
 local business. Return JSON with "subject" and "paragraphs".
@@ -49,6 +51,29 @@ Not salesy: avoid the word offer."""
 
 class AiError(RuntimeError):
     """The email could not be written; the message is shown to the user."""
+
+
+class _ServiceDown(AiError):
+    """One AI service failed; the next one may still work."""
+
+    def __init__(self, message: str, *, rest: float = 0.0) -> None:
+        super().__init__(message)
+        self.rest = rest
+
+
+# Service name -> monotonic time until which it is skipped (free limit used up).
+_resting: dict[str, float] = {}
+
+
+def services(settings: Settings) -> list[tuple[AiProvider, str | None]]:
+    """Groq first, then the fallbacks, each with its key from .env (None when missing)."""
+    groq = AiProvider(name="groq", url=API_URL, model=settings.ai.model)
+    found: list[tuple[AiProvider, str | None]] = []
+    for provider in [groq, *settings.ai.fallbacks]:
+        secret = getattr(settings, f"{provider.name}_api_key", None)
+        value = secret.get_secret_value() if secret is not None else ""
+        found.append((provider, value or None))
+    return found
 
 
 class _Reply(BaseModel):
@@ -207,63 +232,102 @@ def assemble(paragraphs: list[str], facts: LeadFacts, sender: SenderSettings) ->
     return "\n\n".join(parts) + "\n"
 
 
-def _ask(client: httpx.Client, settings: Settings, messages: list[dict[str, str]]) -> str:
-    key = settings.groq_api_key
-    if key is None or not key.get_secret_value():
-        raise AiError("AI writing is not connected: GROQ_API_KEY is missing in .env")
+_SCHEMA: dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "email",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string"},
+                "paragraphs": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["subject", "paragraphs"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def _ask_one(
+    client: httpx.Client, provider: AiProvider, key: str, messages: list[dict[str, str]]
+) -> str:
+    """One service's answer. Raises :class:`_ServiceDown` so the next service is tried."""
+    label = provider.name.capitalize()
     payload: dict[str, Any] = {
-        "model": settings.ai.model,
+        "model": provider.model,
         "messages": messages,
         "temperature": 0.7,
-        "max_completion_tokens": 1500,
-        "reasoning_effort": "low",
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "email",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "subject": {"type": "string"},
-                        "paragraphs": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": ["subject", "paragraphs"],
-                    "additionalProperties": False,
-                },
-            },
-        },
+        "response_format": _SCHEMA,
     }
+    # Every OpenAI-compatible service accepts max_tokens; Groq prefers the newer name.
+    payload["max_completion_tokens" if provider.url == API_URL else "max_tokens"] = 1500
+    if provider.reasoning_effort:
+        payload["reasoning_effort"] = provider.reasoning_effort
     for attempt in range(ATTEMPTS):
         try:
             response = client.post(
-                API_URL,
+                provider.url,
                 json=payload,
-                headers={"Authorization": f"Bearer {key.get_secret_value()}"},
+                headers={"Authorization": f"Bearer {key}"},
                 timeout=60.0,
             )
         except httpx.HTTPError as exc:
             if attempt == ATTEMPTS - 1:
-                raise AiError("Could not reach the AI service. Check the internet.") from exc
+                raise _ServiceDown(f"{label} could not be reached") from exc
             time.sleep(2.0**attempt)
             continue
         if response.status_code == 429:
             wait = _seconds(response.headers.get("retry-after"))
             if wait > MAX_WAIT or attempt == ATTEMPTS - 1:
-                raise AiError("The free AI limit is used up for now. Try again later.")
+                raise _ServiceDown(
+                    f"the free {label} limit is used up", rest=max(wait, REST_SECONDS)
+                )
             time.sleep(wait)
             continue
         if response.status_code in (401, 403):
-            raise AiError("The AI service refused the key. Check GROQ_API_KEY in .env")
+            raise _ServiceDown(
+                f"{label} refused the key; check {provider.name.upper()}_API_KEY in .env"
+            )
         if response.status_code == 400 and "json_validate_failed" in response.text:
             return ""
         if response.status_code >= 400:
             if attempt == ATTEMPTS - 1 or response.status_code < 500:
-                raise AiError(f"The AI service answered with an error ({response.status_code})")
+                raise _ServiceDown(f"{label} answered with an error ({response.status_code})")
             time.sleep(2.0**attempt)
             continue
-        return str(response.json()["choices"][0]["message"]["content"] or "")
-    raise AiError("The AI service did not answer")
+        try:
+            return str(response.json()["choices"][0]["message"]["content"] or "")
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise _ServiceDown(f"{label} sent an answer that could not be read") from exc
+    raise _ServiceDown(f"{label} did not answer")
+
+
+def _ask(
+    client: httpx.Client, settings: Settings, messages: list[dict[str, str]]
+) -> tuple[str, str]:
+    """The first working service's answer and its model name."""
+    reasons: list[str] = []
+    connected = False
+    for provider, key in services(settings):
+        if key is None:
+            continue
+        connected = True
+        if _resting.get(provider.name, 0.0) > time.monotonic():
+            reasons.append(f"the free {provider.name.capitalize()} limit is used up")
+            continue
+        try:
+            return _ask_one(client, provider, key, messages), provider.model
+        except _ServiceDown as exc:
+            if exc.rest:
+                _resting[provider.name] = time.monotonic() + exc.rest
+            reasons.append(str(exc))
+    if not connected:
+        raise AiError("AI writing is not connected: GROQ_API_KEY is missing in .env")
+    if all("limit" in r for r in reasons):
+        raise AiError("The free AI limit is used up for now. Try again later.")
+    raise AiError("No AI service could write the email: " + "; ".join(reasons))
 
 
 def _seconds(value: str | None) -> float:
@@ -287,7 +351,7 @@ def write_email(facts: LeadFacts, settings: Settings, client: httpx.Client | Non
     issues: list[str] = []
     try:
         for _ in range(ATTEMPTS):
-            raw = _ask(client, settings, messages)
+            raw, model = _ask(client, settings, messages)
             try:
                 reply = _Reply.model_validate_json(raw)
                 issues = problems(reply, facts)
@@ -297,7 +361,7 @@ def write_email(facts: LeadFacts, settings: Settings, client: httpx.Client | Non
                 if not issues:
                     subject = re.sub(r"\s+", " ", reply.subject).strip()
                     body = assemble(reply.paragraphs, facts, settings.sender)
-                    return Email(subject, body, settings.ai.model)
+                    return Email(subject, body, model)
             messages = [
                 *messages[:2],
                 {"role": "user", "content": "Write it again. The last try " + "; ".join(issues)},

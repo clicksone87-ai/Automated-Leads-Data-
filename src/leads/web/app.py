@@ -21,7 +21,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from leads.db import session_scope
 from leads.export import ATTRIBUTION_LINES, EXPORT_COLUMNS
 from leads.models import Lead, Suppression
-from leads.outreach import drafts, whatsapp
+from leads.outreach import ai, drafts, whatsapp
 from leads.outreach.ai import AiError
 from leads.outreach.phrases import LANGUAGES, lead_language
 from leads.settings import Settings, get_settings, load_categories
@@ -161,7 +161,7 @@ def setup_state(settings: Settings) -> dict[str, bool]:
     sender = settings.sender
     return {
         "gmail": settings.token_path.is_file() and bool(settings.gmail_account),
-        "ai": bool(settings.groq_api_key and settings.groq_api_key.get_secret_value()),
+        "ai": any(key for _, key in ai.services(settings)),
         "sender": not drafts.warnings(settings) and sender.company not in ("", "Your Company"),
         "sheet": bool(settings.google_sheet_id),
     }

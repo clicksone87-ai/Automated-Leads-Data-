@@ -91,6 +91,10 @@ services:
     image: lead-automation-worker:latest
     restart: unless-stopped
     command: ["leads", "dashboard", "--host", "0.0.0.0"]
+    # Sender details and other overrides; the values under environment still win.
+    env_file:
+      - path: .env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-leads}:${POSTGRES_PASSWORD:-leads}@db:5432/${POSTGRES_DB:-leads}
       GROQ_API_KEY: ${GROQ_API_KEY:-}

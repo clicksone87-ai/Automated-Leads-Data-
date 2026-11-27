@@ -35,7 +35,16 @@ GOOD = {
 }
 
 
-def ask(*replies: Any, facts: LeadFacts = FACTS) -> tuple[ai.Email, list[httpx.Request]]:
+@pytest.fixture(autouse=True)
+def _no_resting_services() -> Iterator[None]:
+    ai._resting.clear()
+    yield
+    ai._resting.clear()
+
+
+def ask(
+    *replies: Any, facts: LeadFacts = FACTS, gemini: str | None = None
+) -> tuple[ai.Email, list[httpx.Request]]:
     seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -46,7 +55,11 @@ def ask(*replies: Any, facts: LeadFacts = FACTS) -> tuple[ai.Email, list[httpx.R
         content = json.dumps(reply)
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
-    settings = Settings(groq_api_key=SecretStr("k"), sender=SENDER)
+    settings = Settings(
+        groq_api_key=SecretStr("k"),
+        gemini_api_key=SecretStr(gemini) if gemini else None,
+        sender=SENDER,
+    )
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         return write_email(facts, settings, client), seen
 
@@ -86,6 +99,32 @@ def test_contacts_and_markup_never_reach_the_model() -> None:
 def test_used_up_limit_is_reported() -> None:
     with pytest.raises(AiError, match="limit"):
         ask(429)
+
+
+def test_gemini_takes_over_when_the_groq_limit_is_used_up() -> None:
+    email, seen = ask(429, GOOD, gemini="g")
+    assert seen[0].url.host == "api.groq.com"
+    assert seen[1].url.host == "generativelanguage.googleapis.com"
+    assert seen[1].headers["Authorization"] == "Bearer g"
+    assert email.model == "gemini-flash-lite-latest"
+    # Groq is left alone for a while, so the next email goes straight to Gemini.
+    _, seen = ask(GOOD, gemini="g")
+    assert [r.url.host for r in seen] == ["generativelanguage.googleapis.com"]
+
+
+def test_gemini_takes_over_when_groq_refuses_the_key() -> None:
+    email, seen = ask(401, GOOD, gemini="g")
+    assert len(seen) == 2 and email.model == "gemini-flash-lite-latest"
+
+
+def test_both_limits_used_up_is_reported_as_a_limit() -> None:
+    with pytest.raises(AiError, match="limit is used up"):
+        ask(429, gemini="g")
+
+
+def test_groq_alone_is_used_when_no_fallback_key_is_set() -> None:
+    email, seen = ask(GOOD)
+    assert len(seen) == 1 and email.model == "openai/gpt-oss-120b"
 
 
 def test_every_status_has_an_opening() -> None:
@@ -535,3 +574,28 @@ def test_translated_templates_use_the_english_placeholders() -> None:
             path = template_path(name, code)
             assert path.parent.name == code or code == "en", (name, code)
             assert placeholders(path.read_text(encoding="utf-8")) <= english | {"link"}, path
+
+
+def test_example_sender_values_are_warned_about() -> None:
+    from leads.settings import OutreachSettings
+
+    example = SenderSettings(
+        sender_name="Your Full Name",
+        company="Clicksone",
+        company_website="https://www.yourcompany.com",
+        company_phone="+92 300 1234567",
+        company_address="Street and number, City, Postcode, Country",
+        mockup_link="https://www.yourcompany.com/portfolio",
+    )
+    found = drafts.warnings(Settings(sender=example, outreach=OutreachSettings()))
+    assert "sender name, phone, website" in found[0]
+    assert any("example postal address" in w for w in found)
+    assert any("mock-up link" in w for w in found)
+    real = SenderSettings(
+        sender_name="Ali Khan",
+        company="Clicksone",
+        company_website="https://clicksone.example",
+        company_phone="+92 51 1234000",
+        company_address="12 Main Road, Islamabad 44000, Pakistan",
+    )
+    assert drafts.warnings(Settings(sender=real)) == []

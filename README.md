@@ -120,7 +120,7 @@ Each item maps to `TODO(build step N)` markers in the code.
 
 - [x] **1. Project setup**: repo, uv, Docker Compose, settings, DB schema + Alembic, CI (ruff, mypy, pytest)
 - [ ] **2. Overture + Foursquare loaders** for 2–3 test countries, normalise, country filter (`sources/overture.py`, `sources/foursquare.py`, `pipeline/__init__.py`) — Overture done (tested on MT, IE); Foursquare tested on MT
-- [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`) — loaders written; UK (Leeds–Manchester) tested end to end, Canada file loaded, Norway, France and Australia not yet loaded
+- [ ] **3. Age resolver + Companies House**, then other registries (`pipeline/age.py`, `sources/registries/*`) — loaders written; all five switched on; UK and Norway loaded, Canada, France and Australia load on the first server run
 - [x] **4. Website checker + email/WhatsApp extractor** (`enrich/website.py`, `enrich/check.py`); a status is set only on proof, anything unclear stays empty. JavaScript-only pages are opened in headless Chromium (`enrich/browser.py`). Leads without a website are tried at their email domain, then at the .com of an Instagram/X/TikTok/YouTube/Pinterest profile name, kept only if that site links back to the profile or shows the lead's phone or email. Facebook and Instagram pages themselves are never fetched: their robots.txt forbids it
 - [x] **5. Dedupe/match + CSV export + dashboard**: stable lead ids, `merge_fields`, upserts (`pipeline/match.py`)
 - [x] **6. Prefect flows + schedules + monthly refresh** (`flows/*`, `pipeline/refresh.py`; deployments are registered already)

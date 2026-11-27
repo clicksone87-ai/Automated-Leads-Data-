@@ -276,7 +276,7 @@ function openEmail(id, name) {
     if (d.email) fill(d.email);
     return [...top,
       d.warnings.length > 0 && h('div', { class: 'notice' }, 'Before sending:', h('ul', {}, d.warnings.map((w) => h('li', {}, w)))),
-      !d.ai && h('div', { class: 'notice' }, 'AI writing is not connected: add GROQ_API_KEY to .env and restart the dashboard.'),
+      !d.ai && h('div', { class: 'notice' }, 'AI writing is not connected: add GROQ_API_KEY (and GEMINI_API_KEY as a backup) to .env and restart the dashboard.'),
       !d.gmail && h('div', { class: 'notice' }, 'Gmail is not connected yet, so drafts cannot be saved. See Setup.'),
       d.language && h('p', {}, 'Language: ', chip(d.language, 'blue')),
       d.language && !d.language.includes('English') && h('div', { class: 'notice' }, 'Ask someone who reads this language to check the text before sending.'),
@@ -391,7 +391,7 @@ async function setupPage() {
     table([{ label: 'Item', get: (r) => r.name }, { label: 'Status', get: (r) => h('span', { class: r.ok ? 'tag ok' : 'tag warn' }, r.ok ? 'Ready' : 'Not ready') }, { label: 'Details', get: (r) => r.text }], [
       item('Website checks', d.checked >= d.total, num(d.checked) + ' of ' + num(d.total) + ' leads checked, running all day. Last one: ' + (when(d.last_checked) || 'none')),
       item('Gmail', d.state.gmail, d.state.gmail ? 'Connected' : 'Sign in with the Google account that should hold the drafts'),
-      item('AI writing', d.state.ai, d.state.ai ? 'Connected. Writes a different email for each business' : 'Add GROQ_API_KEY to .env'),
+      item('AI writing', d.state.ai, d.state.ai ? 'Connected. Writes a different email for each business' : 'Add GROQ_API_KEY (and GEMINI_API_KEY as a backup) to .env'),
       item('Sender details', d.state.sender, d.warnings.length ? d.warnings.join(' ') : 'Complete'),
     ]),
     h('h2', { class: 'bar' }, 'Automatic schedule'),

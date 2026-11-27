@@ -103,11 +103,10 @@ def test_extracts_come_from_the_geofabrik_index(tmp_path: Path) -> None:
     assert table["GB"] == ("europe/united-kingdom",)
 
 
-def test_gb_test_box_keeps_the_leeds_manchester_extracts(
+def test_a_country_box_does_not_shrink_the_extract(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     fixture = Path(__file__).parent / "fixtures" / "geofabrik_index.json"
     monkeypatch.setattr(osm, "download", lambda url, dest: fixture)
-    test = OsmSource(tmp_path, {"GB": (-2.35, 53.35, -1.40, 53.90)}).extracts()
-    assert test["GB"] == osm.GB_TEST and test["SA"] == ("asia/gcc-states",)
-    assert OsmSource(tmp_path).extracts()["GB"] == ("europe/united-kingdom",)
+    table = OsmSource(tmp_path, {"GB": (-8.8, 49.8, 2.0, 61.0)}).extracts()
+    assert table["GB"] == ("europe/united-kingdom",) and table["SA"] == ("asia/gcc-states",)

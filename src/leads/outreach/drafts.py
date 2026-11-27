@@ -96,21 +96,43 @@ def blockers(session: Session, lead: Lead, settings: Settings) -> list[str]:
     return found
 
 
+# The example values from .env.example and settings.yaml, which must never reach a business.
+EXAMPLE_VALUES = frozenset(
+    {
+        "your name",
+        "your full name",
+        "https://www.yourcompany.com",
+        "https://www.yourcompany.com/portfolio",
+        "+92 300 1234567",
+        "street and number, city, postcode, country",
+    }
+)
+
+
+def _real(value: str) -> str:
+    return "" if value.strip().lower() in EXAMPLE_VALUES else value
+
+
 def warnings(settings: Settings) -> list[str]:
     """Missing sender details: a draft can be made, but should not be sent like this."""
     sender = settings.sender
     missing = [
         label
         for label, value in (
-            ("sender name", sender.sender_name if sender.sender_name != "Your Name" else ""),
-            ("phone", sender.company_phone),
-            ("website", sender.company_website),
+            ("sender name", _real(sender.sender_name)),
+            ("phone", _real(sender.company_phone)),
+            ("website", _real(sender.company_website)),
         )
         if not value
     ]
     found = [f"The signature has no {', '.join(missing)}."] if missing else []
-    if not re.search(r"\d", sender.company_address):
+    address = _real(sender.company_address)
+    if not address:
+        found.append("The signature has the example postal address; the real one is needed.")
+    elif not re.search(r"\d", address):
         found.append("The signature has only a city; a full postal address is needed.")
+    if _real(sender.mockup_link) != sender.mockup_link:
+        found.append("The mock-up link is the example address.")
     return found
 
 

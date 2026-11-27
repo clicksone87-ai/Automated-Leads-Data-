@@ -32,13 +32,6 @@ EXTRA_EXTRACTS: dict[str, tuple[str, ...]] = {
     "IM": ("europe/isle-of-man",), "XK": ("europe/kosovo",),
     "SA": ("asia/gcc-states",),  # in the GCC extract, but not among its codes
 }  # fmt: skip
-ENGLAND = "europe/united-kingdom/england"
-# Leeds to Manchester, used while country_bbox keeps its GB test box.
-GB_TEST = (
-    f"{ENGLAND}/greater-manchester",
-    f"{ENGLAND}/west-yorkshire",
-    f"{ENGLAND}/south-yorkshire",
-)
 
 
 def index_extracts(path: Path) -> dict[str, tuple[str, ...]]:
@@ -226,10 +219,7 @@ class OsmSource:
     def extracts(self) -> dict[str, tuple[str, ...]]:
         """Extract regions per country, from Geofabrik's index (refreshed monthly)."""
         index = download(INDEX_URL, self.extracts_dir / "geofabrik-index.json")
-        table = {**index_extracts(index), **EXTRA_EXTRACTS}
-        if "GB" in self.bbox:
-            table["GB"] = GB_TEST
-        return table
+        return {**index_extracts(index), **EXTRA_EXTRACTS}
 
     def fetch(self, countries: Collection[str], since: date) -> Iterator[RawRecord]:
         """Businesses in ``countries``; countries without an extract are skipped."""

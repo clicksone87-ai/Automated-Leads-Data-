@@ -57,7 +57,18 @@ sender:                         # TODO: fill in before creating drafts
   mockup_link: ""
 
 ai:                             # writes the emails; needs GROQ_API_KEY in .env
-  model: "openai/gpt-oss-120b"
+  model: "openai/gpt-oss-120b"  # on Groq, always tried first
+  # Used in this order when Groq fails or its free daily limit is used up. Each one needs
+  # <NAME>_API_KEY in .env (GEMINI_API_KEY, OPENROUTER_API_KEY); without a key it is skipped.
+  fallbacks:
+    - name: gemini              # free key: aistudio.google.com/apikey
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+      model: "gemini-flash-lite-latest"  # the full Flash model was often overloaded
+      reasoning_effort: "low"
+    # - name: openrouter        # free key: openrouter.ai/keys; pick a model marked ":free"
+    #   url: "https://openrouter.ai/api/v1/chat/completions"
+    #   model: "openai/gpt-oss-120b:free"
+    #   reasoning_effort: null
 
 sanctions:
   sdn_url: "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/SDN.CSV"
@@ -84,6 +95,10 @@ collect:
   # The monthly run; [] = every country in countries.yaml (all countries are on).
   # To test on a few countries only, list them here, e.g. [GB, IE, MT].
   countries: []
+  # When the worker starts and no full collect has finished in the last 35 days (for
+  # example a new server with an empty database), collect at once instead of waiting
+  # for the 1st of the month. Set COLLECT__ON_START=false in .env on a laptop.
+  on_start: true
 
 refresh:
   closed_after_missed_runs: 2
@@ -206,14 +221,14 @@ sources:
     enabled: true
     extracts_dir: null          # Geofabrik .osm.pbf files; null = data/osm
   companies_house:
-    enabled: false
+    enabled: true
   sirene:
-    enabled: false
+    enabled: true
   brreg:
-    enabled: false
+    enabled: true
   abn:
-    enabled: false
+    enabled: true
   canada:
-    enabled: false
+    enabled: true
   directories:
     enabled: false

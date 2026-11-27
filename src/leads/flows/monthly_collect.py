@@ -7,7 +7,7 @@ from typing import Any
 
 from prefect import flow, get_run_logger, task
 
-from leads.alerts import on_flow_failure
+from leads.alerts import on_flow_failure, report_failure
 from leads.db import finish_run, save_counts, start_run
 from leads.pipeline.refresh import coverage_counts
 from leads.settings import get_settings, load_countries
@@ -70,10 +70,22 @@ def monthly_collect(sources: list[str] | None = None) -> dict[str, Any]:
         raise ValueError("collect.countries names no country from countries.yaml")
     run_id = start_run("monthly-collect")
     counts: dict[str, Any] = {"sources": {}}
+    failed: dict[str, str] = {}
     try:
         for name in names:
-            counts["sources"][name] = collect_source(name, str(run_id))
+            # One unreachable registry or mirror must not cost the other sources' leads.
+            # A source with 0 rows covers nothing, so refresh closes none of its leads.
+            try:
+                counts["sources"][name] = collect_source(name, str(run_id))
+            except Exception as exc:
+                counts["sources"][name] = 0
+                failed[name] = repr(exc)[:300]
+                logger.error("source %s failed after retries: %s", name, failed[name])
+                continue
             logger.info("collected %s rows from %s", counts["sources"][name], name)
+        if failed and len(failed) == len(names):
+            raise RuntimeError(f"every source failed: {failed}")
+        counts["failed_sources"] = failed
         countries = sorted(settings.collect.codes(load_countries()))
         counts["coverage"] = coverage_counts(counts["sources"], countries, settings)
         save_counts(run_id, counts)
@@ -84,4 +96,6 @@ def monthly_collect(sources: list[str] | None = None) -> dict[str, Any]:
         finish_run(run_id, "failed", counts)
         raise
     finish_run(run_id, "success", counts)
+    if failed:
+        report_failure("monthly-collect", "sources skipped this month: " + ", ".join(failed))
     return counts

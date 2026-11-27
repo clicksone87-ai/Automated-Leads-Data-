@@ -78,8 +78,27 @@ class SenderSettings(BaseModel):
     mockup_link: str = ""
 
 
+class AiProvider(BaseModel):
+    """An OpenAI-compatible chat service used when the ones before it fail or run out."""
+
+    name: str
+    url: str
+    model: str
+    reasoning_effort: str | None = "low"
+
+
+GEMINI = AiProvider(
+    name="gemini",
+    url="https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    model="gemini-flash-lite-latest",
+)
+
+
 class AiSettings(BaseModel):
-    model: str = "openai/gpt-oss-120b"
+    model: str = "openai/gpt-oss-120b"  # on Groq, always tried first
+    # Tried in order when Groq fails or its free limit is used up. Each needs
+    # <NAME>_API_KEY in .env (GEMINI_API_KEY for gemini); without a key it is skipped.
+    fallbacks: list[AiProvider] = [GEMINI]
 
 
 class SanctionsSettings(BaseModel):
@@ -113,6 +132,7 @@ class WaybackSettings(BaseModel):
 class CollectSettings(BaseModel):
     # ISO-2 codes the monthly run collects; empty = every country in countries.yaml.
     countries: list[str] = []
+    on_start: bool = True
 
     def codes(self, included: frozenset[str]) -> frozenset[str]:
         return frozenset(c.upper() for c in self.countries) & included or (
@@ -145,6 +165,8 @@ class Settings(BaseSettings):
     gmail_user_id: str = "me"
     gmail_account: str | None = None  # drafts are refused in any other account
     groq_api_key: SecretStr | None = None
+    gemini_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
     google_sheet_id: str | None = None
     companies_house_api_key: SecretStr | None = None
     hf_token: SecretStr | None = None
