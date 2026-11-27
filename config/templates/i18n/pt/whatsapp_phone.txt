@@ -1,0 +1,1 @@
+Olá, aqui é {sender_name}, de {company}. Encontramos {business_name} e queríamos entrar em contato. Criamos sites para empresas locais e teríamos prazer em preparar um protótipo gratuito de uma página para {business_name}, sem compromisso. Se preferir que eu não envie mensagens pelo WhatsApp, é só avisar que eu paro.

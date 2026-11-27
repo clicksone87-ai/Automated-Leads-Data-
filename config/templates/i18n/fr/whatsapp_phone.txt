@@ -1,0 +1,1 @@
+Bonjour, ici {sender_name} de {company}. Nous avons découvert {business_name} et souhaitions vous contacter. Nous créons des sites web pour les entreprises locales, et je peux préparer gratuitement une maquette d'une page pour {business_name}, sans engagement. Si vous préférez que je ne vous écrive pas sur WhatsApp, dites-le-moi simplement et j'arrêterai.

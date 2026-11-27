@@ -166,10 +166,10 @@ def _whatsapp_leads() -> None:
         )  # fmt: skip
 
 
-def test_whatsapp_only_after_reply_or_public_number(client: TestClient) -> None:
+def test_whatsapp_for_any_phone_number(client: TestClient) -> None:
     _whatsapp_leads()
-    cold = client.get("/api/leads/a/whatsapp").json()
-    assert cold["blockers"] and "replied" in cold["blockers"][0]
+    no_phone = client.get("/api/leads/a/whatsapp").json()
+    assert no_phone["blockers"] == ["There is no phone or WhatsApp number for this business."]
 
     replied = client.get("/api/leads/w1/whatsapp").json()
     assert replied["blockers"] == []
@@ -180,8 +180,18 @@ def test_whatsapp_only_after_reply_or_public_number(client: TestClient) -> None:
     assert public["blockers"] == []
     assert "welcome messages on WhatsApp" in public["text"]
 
-    landline = client.get("/api/leads/w3/whatsapp").json()
-    assert landline["blockers"] == ["There is no mobile or WhatsApp number for this business."]
+    replied_landline = client.get("/api/leads/w3/whatsapp").json()
+    assert replied_landline["blockers"] == []
+    assert replied_landline["number"] == "+442079460018"
+
+    with db.session_scope() as s:
+        s.add(Lead(lead_id="w4", name="Phone Only", country_iso2="GB",
+                   phone_e164="+447700900789", phone_type="mobile"))  # fmt: skip
+    cold = client.get("/api/leads/w4/whatsapp").json()
+    assert cold["blockers"] == []
+    assert cold["number"] == "+447700900789"
+    assert "I came across Phone Only" in cold["text"]
+    assert "welcome messages" not in cold["text"]
 
 
 def test_whatsapp_opened_is_recorded_once(client: TestClient) -> None:

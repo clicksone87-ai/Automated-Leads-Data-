@@ -1,7 +1,9 @@
 """WhatsApp messages a person sends by hand from the dashboard.
 
 Nothing here talks to WhatsApp. The dashboard opens a wa.me link with the text filled in,
-and the person presses Send in their own WhatsApp Business app.
+and the person presses Send in their own WhatsApp Business app. Whether a number is on
+WhatsApp is never checked here: WhatsApp itself says so when the chat opens (and offers
+to invite the number), so no checker or unofficial API is used.
 """
 
 from __future__ import annotations
@@ -20,9 +22,9 @@ from leads.settings import Settings
 AFTER_REPLY = "whatsapp_after_reply"
 # For a business that shows a WhatsApp number itself and so invites contact there.
 FIRST = "whatsapp_first"
+# For any other phone number of the business, clicked in the dashboard.
+PHONE = "whatsapp_phone"
 NO_LINK = "[add the mock-up link]"
-# Numbers that may reach a phone with WhatsApp; a plain landline cannot.
-_MOBILE_TYPES = {"mobile", "landline_or_mobile"}
 
 
 class WhatsAppError(Exception):
@@ -35,6 +37,7 @@ class WhatsAppState:
     text: str = ""
     language: str = "en"
     replied: bool = False
+    public: bool = False  # the business shows this number for WhatsApp itself
     opened_at: datetime | None = None
     blockers: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -55,19 +58,15 @@ def _replied(session: Session, lead_id: str) -> bool:
     )
 
 
-def _number(lead: Lead, replied: bool) -> str | None:
-    """A number shown for WhatsApp, or after a reply the business's own mobile number."""
-    if lead.whatsapp_number:
-        return lead.whatsapp_number
-    if replied and lead.phone_e164 and lead.phone_type in _MOBILE_TYPES:
-        return lead.phone_e164
-    return None
+def _number(lead: Lead) -> str | None:
+    """The number shown for WhatsApp, else the business's own phone number."""
+    return lead.whatsapp_number or lead.phone_e164 or None
 
 
 def state(session: Session, lead: Lead, settings: Settings) -> WhatsAppState:
     """Whether this lead may get a WhatsApp message now, and the suggested text."""
     replied = _replied(session, lead.lead_id)
-    result = WhatsAppState(replied=replied, number=_number(lead, replied))
+    result = WhatsAppState(replied=replied, number=_number(lead), public=bool(lead.whatsapp_number))
     result.opened_at = session.scalar(
         select(Outreach.drafted_at).where(
             (Outreach.lead_id == lead.lead_id) & (Outreach.channel == Channel.WHATSAPP)
@@ -82,13 +81,8 @@ def state(session: Session, lead: Lead, settings: Settings) -> WhatsAppState:
     ]
     if keys and session.scalar(select(exists().where(Suppression.email_or_phone.in_(keys)))):
         result.blockers.append("This contact has opted out.")
-    if not replied and not lead.whatsapp_number:
-        result.blockers.append(
-            "WhatsApp is only for businesses that replied to an email, or that show a "
-            "WhatsApp number themselves."
-        )
-    elif result.number is None:
-        result.blockers.append("There is no mobile or WhatsApp number for this business.")
+    if result.number is None:
+        result.blockers.append("There is no phone or WhatsApp number for this business.")
     elif result.opened_at is None and session.scalar(
         select(
             exists().where(
@@ -101,7 +95,7 @@ def state(session: Session, lead: Lead, settings: Settings) -> WhatsAppState:
         return result
 
     language = lead_language(lead.name, lead.country_iso2)
-    template = AFTER_REPLY if replied else FIRST
+    template = AFTER_REPLY if replied else FIRST if lead.whatsapp_number else PHONE
     result.language = effective_language(template, language)
     context = build_context(
         business_name=display_name(lead.name, result.language),

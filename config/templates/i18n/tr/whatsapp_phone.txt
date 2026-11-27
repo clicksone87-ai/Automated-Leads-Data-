@@ -1,0 +1,1 @@
+Merhaba, ben {company} şirketinden {sender_name}. {business_name} ile karşılaştık ve sizinle iletişime geçmek istedik. Yerel işletmeler için web siteleri hazırlıyoruz; {business_name} için ücretsiz ve yükümlülüksüz tek sayfalık bir taslak hazırlamaktan memnuniyet duyarız. WhatsApp'tan mesaj almak istemezseniz söylemeniz yeterli, yazmayı bırakırım.

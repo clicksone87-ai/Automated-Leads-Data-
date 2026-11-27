@@ -229,6 +229,7 @@ def whatsapp_panel(lead_id: str, db: DB) -> dict[str, Any]:
         "text": current.text,
         "language": LANGUAGES[current.language].name if current.language in LANGUAGES else None,
         "replied": current.replied,
+        "public": current.public,
         "opened_at": current.opened_at,
         "blockers": current.blockers,
         "warnings": current.warnings,

@@ -1,0 +1,1 @@
+Hallo, hier ist {sender_name} von {company}. Wir sind auf {business_name} gestoßen und wollten uns kurz melden. Wir erstellen Websites für lokale Unternehmen und entwerfen gern kostenlos und unverbindlich eine einseitige Vorschau für {business_name}. Wenn Sie lieber keine Nachrichten über WhatsApp möchten, sagen Sie es einfach, dann höre ich auf.

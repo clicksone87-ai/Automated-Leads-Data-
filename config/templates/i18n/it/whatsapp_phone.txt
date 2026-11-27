@@ -1,0 +1,1 @@
+Buongiorno, sono {sender_name} di {company}. Abbiamo conosciuto {business_name} e volevamo contattarvi. Realizziamo siti web per attività locali e saremmo lieti di preparare gratuitamente un'anteprima di una pagina per {business_name}, senza impegno. Se preferite non ricevere messaggi su WhatsApp, basta dirmelo e smetterò.

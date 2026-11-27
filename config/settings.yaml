@@ -5,7 +5,7 @@
 # Keep businesses created / first seen on or after this date.
 since: 2018-01-01
 # Leads with no known creation date are kept in the DB (age_unknown = true).
-# This flag controls whether they appear in exports, the Sheet and daily drafts.
+# This flag controls whether they appear in exports, the dashboard and daily drafts.
 include_unknown_age: true
 
 # Time zone for all Prefect schedules (IANA name). Set TZ in .env to the same value
@@ -14,7 +14,7 @@ timezone: Asia/Karachi
 
 schedules:              # cron expressions, evaluated in `timezone`
   monthly_collect: "0 2 1 * *"   # 1st of month 02:00: collect + refresh
-  daily_drafts: "0 7 * * *"      # 07:00: Gmail drafts + Google Sheet update
+  daily_drafts: "0 7 * * *"      # 07:00: opening dates + Gmail drafts
   gmail_sync: "*/30 * * * *"     # every 30 min
   backup_check: "30 3 * * *"     # 03:30: verify the 03:00 pg_dump from the backup container
 
@@ -81,13 +81,9 @@ wayback:                        # first capture of a lead's own website, as age 
   seconds_per_request: 1.5      # archive.org asks for about 1 request per second
 
 collect:
-  # The monthly run; [] = every country in countries.yaml.
-  # Countries loaded so far. On the production server set [] to collect every country
-  # in countries.yaml, and remove the GB test box below so all of Great Britain is used.
-  countries: [GB, IE, MT, AE, SA, QA, KW, BH, OM, JO, LB, IQ, SY, YE, PS, "NO",
-              LU, IS, MC, LI, AD, SM, VA, FO, GI, GG, IM, JE, AX, XK, ME, MK, AL, CY,
-              EE, LV, LT, SI, MD, GE, AM, AG, BS, BB, DM, DO, GD, HT, JM, KN, LC, VC,
-              TT, AI, AW, VG, KY, CW, GP, MQ, MS]
+  # The monthly run; [] = every country in countries.yaml (all countries are on).
+  # To test on a few countries only, list them here, e.g. [GB, IE, MT].
+  countries: []
 
 refresh:
   closed_after_missed_runs: 2
@@ -96,7 +92,7 @@ refresh:
 # [west, south, east, north] per country. Used only when every requested country has a
 # box; it avoids scanning the whole planet for a few test countries.
 country_bbox:
-  GB: [-2.35, 53.35, -1.40, 53.90]     # Leeds to Manchester; whole GB: [-8.8, 49.8, 2.0, 61.0]
+  GB: [-8.8, 49.8, 2.0, 61.0]         # whole of Great Britain
   IE: [-10.8, 51.3, -5.9, 55.5]
   MT: [14.1, 35.7, 14.7, 36.2]
   "NO": [4.0, 57.8, 31.3, 71.3]

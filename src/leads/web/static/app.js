@@ -187,7 +187,7 @@ function leadTable(d, f, set) {
       h('td', {}, r.city || h('span', { class: 'muted' }, '—'), h('small', {}, country(r.country_iso2))),
       h('td', {}, r.created_date ? [day(r.created_date), h('small', {}, src(r.age_source))] : h('span', { class: 'muted' }, 'Unknown')),
       h('td', {}, r.email ? h('button', { class: 'linkbtn clip', title: 'Email ' + r.email, onclick: () => openEmail(r.lead_id, r.name) }, r.email) : h('span', { class: 'muted' }, '—')),
-      h('td', {}, r.phone_e164 || h('span', { class: 'muted' }, '—')),
+      h('td', {}, r.phone_e164 ? phoneLink(r.lead_id, r.name, r.phone_e164) : h('span', { class: 'muted' }, '—')),
       h('td', {}, siteCell(r), h('div', {}, webChip(r)))))))), pager()];
 }
 
@@ -232,8 +232,8 @@ function openLead(id) {
       h('p', {}, d.email && h('button', { class: 'btn primary', onclick: () => openEmail(d.lead_id, d.name) }, 'Send email'), ' ',
         (d.whatsapp_number || d.phone_e164) && h('button', { class: 'btn', onclick: () => openWhatsApp(d.lead_id, d.name) }, 'WhatsApp')),
       h('h2', {}, 'Contact'), h('dl', {},
-        row('Email', d.email || 'None found'), row('Phone', d.phone_e164 || 'None found'),
-        row('WhatsApp', d.whatsapp_number), row('Address', [d.address, d.city, d.region, d.postcode].filter(Boolean).join(', ')),
+        row('Email', d.email || 'None found'), row('Phone', d.phone_e164 ? phoneLink(d.lead_id, d.name, d.phone_e164) : 'None found'),
+        row('WhatsApp', d.whatsapp_number && phoneLink(d.lead_id, d.name, d.whatsapp_number)), row('Address', [d.address, d.city, d.region, d.postcode].filter(Boolean).join(', ')),
         row('Social pages', socials.length && socials.map(([k, v], i) => [i ? ', ' : '', safeLink(v, k)]))),
       h('h2', {}, 'Website'), h('dl', {}, row('Address', d.website ? safeLink(d.website) : 'None listed'), row('Status', webChip(d)), row('Reason', d.website_reason), row('Checked', when(d.website_checked_at))),
       h('h2', {}, 'Business'), h('dl', {}, row('Category', d.category),
@@ -284,6 +284,28 @@ function openEmail(id, name) {
   });
 }
 
+// Clicking a phone number opens the WhatsApp chat straight away with the message filled in.
+// WhatsApp, not this tool, shows "not on WhatsApp / Invite" for numbers without an account.
+// If something needs a look first (opt-out, missing sender name), the WhatsApp panel opens.
+const phoneLink = (id, name, number) => h('button', {
+  class: 'linkbtn', title: 'Open WhatsApp chat with ' + number,
+  onclick: (e) => { e.stopPropagation(); quickWhatsApp(id, name); },
+}, number);
+async function quickWhatsApp(id, name) {
+  const path = 'leads/' + encodeURIComponent(id) + '/whatsapp';
+  const win = window.open('about:blank', '_blank');  // opened in the click, so it is not blocked
+  try {
+    const d = await api(path);
+    if (d.blockers.length || d.warnings.length || !d.number) { win?.close(); return openWhatsApp(id, name); }
+    const url = 'https://wa.me/' + d.number.replace(/\D/g, '') + '?text=' + encodeURIComponent(d.text);
+    if (win) { win.opener = null; win.location.href = url; } else window.location.href = url;
+    post(path).catch(() => { /* the chat is open; recording it is best effort */ });
+  } catch {
+    win?.close();
+    return openWhatsApp(id, name);
+  }
+}
+
 function openWhatsApp(id, name) {
   const path = 'leads/' + encodeURIComponent(id) + '/whatsapp';
   return loadPanel('WhatsApp ' + name, path, (d) => {
@@ -303,10 +325,10 @@ function openWhatsApp(id, name) {
     return [...top,
       d.opened_at && h('div', { class: 'notice' }, 'WhatsApp was already opened for this lead on ' + when(d.opened_at) + '.'),
       d.warnings.length > 0 && h('div', { class: 'notice' }, 'Before sending:', h('ul', {}, d.warnings.map((w) => h('li', {}, w)))),
-      h('p', {}, d.replied ? 'This business replied to your email.' : 'This business shows a WhatsApp number on its own pages.'),
+      h('p', {}, d.replied ? 'This business replied to your email.' : d.public ? 'This business shows a WhatsApp number on its own pages.' : 'This is the business\'s phone number. It may or may not be on WhatsApp.'),
       d.language && h('p', {}, 'Language: ', chip(d.language, 'blue')),
       h('label', { class: 'f' }, 'Message', body),
-      h('p', { class: 'muted' }, 'This opens WhatsApp with the message filled in. Nothing is sent until you press Send there. If they ask you to stop, add the number on the Opt-outs page.'),
+      h('p', { class: 'muted' }, 'This opens the WhatsApp chat with the message filled in. Nothing is sent until you press Send there. If the number is not on WhatsApp, WhatsApp itself tells you so and offers to invite it. If they ask you to stop, add the number on the Opt-outs page.'),
       msg, h('p', {}, link, ' ', view)].filter(Boolean);
   });
 }
