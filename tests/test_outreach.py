@@ -77,8 +77,9 @@ class TestTemplates:
         assert language_for_country("FR") == "fr"
         assert language_for_country("BR") == "pt"
         assert language_for_country("GB") == "en"
-        # No translated template yet -> English file.
-        assert template_path("email_first", "fr").parent.name == "templates"
+        # No translated template for Swedish -> English file.
+        assert template_path("email_first", "sv").parent.name == "templates"
+        assert template_path("email_first", "fr").parent.name == "fr"
 
     def test_translated_template_used_when_present(self, tmp_path: Path) -> None:
         (tmp_path / "i18n" / "fr").mkdir(parents=True)
